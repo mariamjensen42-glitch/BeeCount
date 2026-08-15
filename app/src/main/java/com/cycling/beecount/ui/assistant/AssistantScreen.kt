@@ -30,7 +30,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -52,6 +54,7 @@ import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.IncomeGreen
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AssistantRoute(
@@ -95,17 +98,17 @@ fun AssistantScreen(
                 .padding(innerPadding)
                 .imePadding(),
         ) {
-            TodaySummaryCard(
-                uiState = uiState,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 state = rememberLazyListState(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // 今日概览是滚动流首项，随对话一起滚动（讨论结论）
+                item {
+                    TodayOverviewCard(uiState)
+                }
+
                 if (uiState.messages.isEmpty() && uiState.pendingResult == null && !uiState.isParsing) {
                     item {
                         AssistantBubble(
@@ -173,18 +176,26 @@ fun AssistantScreen(
 }
 
 /**
- * 今日摘要卡：支出/收入合计 + 可展开的今日已记（取代旧版顶部一行文字 + 混排列表）。
+ * 今日概览卡（滚动流首项）：日期/笔数 + 支出收入 + 支出分类 Top3 + 可展开的今日已记明细。
  */
 @Composable
-private fun TodaySummaryCard(
-    uiState: AssistantUiState,
-    modifier: Modifier = Modifier,
-) {
+private fun TodayOverviewCard(uiState: AssistantUiState) {
     var expanded by remember { mutableStateOf(false) }
+    val entryCount = uiState.todayEntries.size
+    val topCategories = uiState.todayEntries
+        .filter { it.type == EntryType.EXPENSE }
+        .groupBy { it.categoryName }
+        .mapValues { (_, entries) -> entries.sumOf { it.amount } }
+        .toList()
+        .sortedByDescending { it.second }
+        .take(3)
+        .map { it.first }
+    val dateText = uiState.today.format(
+        DateTimeFormatter.ofPattern("M月d日 EEEE", java.util.Locale.CHINA)
+    )
+
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -194,28 +205,72 @@ private fun TodaySummaryCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "今日支出 ¥${formatMoney(uiState.todayTotals.expense)}",
+                    text = "今日 · $dateText",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "$entryCount 笔",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "支出 ¥${formatMoney(uiState.todayTotals.expense)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = ExpenseRed,
                 )
                 Text(
-                    text = "今日收入 ¥${formatMoney(uiState.todayTotals.income)}",
+                    text = "收入 ¥${formatMoney(uiState.todayTotals.income)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = IncomeGreen,
                 )
             }
+            if (topCategories.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    topCategories.forEach { name ->
+                        CategoryTag(name)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "今日已记 $entryCount 笔",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (expanded) "收起 ▴" else "展开 ▾",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             AnimatedVisibility(visible = expanded) {
                 Column {
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(8.dp))
-                    if (uiState.todayEntries.isEmpty()) {
+                    if (entryCount == 0) {
                         Text(
                             text = "今天还没记账，说一句话试试",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
                         )
                     } else {
                         uiState.todayEntries.forEach { entry ->
@@ -225,6 +280,22 @@ private fun TodaySummaryCard(
                 }
             }
         }
+    }
+}
+
+/** 分类小标签（支出分类 Top3） */
+@Composable
+private fun CategoryTag(name: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -383,6 +454,11 @@ private fun InputBar(
             placeholder = { Text("例如：昨天打车花了30块") },
             singleLine = true,
             enabled = enabled,
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = HoneyAmber,
+                cursorColor = HoneyAmber,
+            ),
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(8.dp))
