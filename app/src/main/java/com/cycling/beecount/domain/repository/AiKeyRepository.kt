@@ -13,6 +13,4 @@ interface AiKeyRepository {
     suspend fun getKey(): String?
 
     suspend fun saveKey(key: String)
-
-    suspend fun clearKey()
 }

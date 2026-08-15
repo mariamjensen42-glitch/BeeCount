@@ -98,7 +98,7 @@ fun AssistantScreen(
                     item { Spacer(Modifier.height(8.dp)) }
                 }
 
-                items(uiState.messages, key = { it.hashCode() }) { message ->
+                items(uiState.messages, key = { it.id }) { message ->
                     when (message) {
                         is AssistantMessage.User -> UserBubble(message.text)
                         is AssistantMessage.Assistant -> AssistantBubble(message.text)
@@ -194,11 +194,11 @@ private fun ApiKeyDialog(
 private fun TodayTotalsSection(uiState: AssistantUiState, modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
-            text = "今日支出 ¥${"%.2f".format(uiState.todayTotals.expense)}",
+            text = "今日支出 ¥${formatMoney(uiState.todayTotals.expense)}",
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            text = "今日收入 ¥${"%.2f".format(uiState.todayTotals.income)}",
+            text = "今日收入 ¥${formatMoney(uiState.todayTotals.income)}",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -224,7 +224,7 @@ private fun TodayEntryRow(entry: com.cycling.beecount.domain.model.Entry) {
                 )
             }
             Text(
-                text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${"%.2f".format(entry.amount)}",
+                text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
                 style = MaterialTheme.typography.titleMedium,
                 color = if (entry.type == EntryType.EXPENSE) {
                     MaterialTheme.colorScheme.error
@@ -278,7 +278,7 @@ private fun SavedRow(entry: com.cycling.beecount.domain.model.Entry, onUndo: (Lo
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "已记：${entry.categoryName} ¥${"%.2f".format(entry.amount)}",
+                text = "已记：${entry.categoryName} ¥${formatMoney(entry.amount)}",
                 style = MaterialTheme.typography.bodyMedium,
             )
             TextButton(onClick = { onUndo(entry.id) }) { Text("撤销") }

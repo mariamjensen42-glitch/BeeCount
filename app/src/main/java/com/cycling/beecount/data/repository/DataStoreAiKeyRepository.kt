@@ -27,10 +27,6 @@ class DataStoreAiKeyRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[KEY] = key.trim() }
     }
 
-    override suspend fun clearKey() {
-        dataStore.edit { prefs -> prefs.remove(KEY) }
-    }
-
     private companion object {
         val KEY = stringPreferencesKey("deepseek_api_key")
     }

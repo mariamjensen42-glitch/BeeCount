@@ -42,6 +42,8 @@ class DeepSeekAiChatDataSource @Inject constructor(
         } else {
             AiChatResult.Failure(FailureReason.NETWORK)
         }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) {
         AiChatResult.Failure(FailureReason.NETWORK)
     }

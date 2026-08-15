@@ -30,14 +30,17 @@ data class AssistantUiState(
  * 对话流中的一条消息
  */
 sealed interface AssistantMessage {
+    /** 稳定唯一标识，用于 LazyColumn 的 key */
+    val id: Long
+
     /** 用户发送的原话 */
-    data class User(val text: String) : AssistantMessage
+    data class User(override val id: Long, val text: String) : AssistantMessage
 
     /** 助手回复：非记账输入的回应，或解析失败的提示 */
-    data class Assistant(val text: String) : AssistantMessage
+    data class Assistant(override val id: Long, val text: String) : AssistantMessage
 
     /** 已确认入库的账目（带撤销能力） */
-    data class Saved(val entry: Entry) : AssistantMessage
+    data class Saved(override val id: Long, val entry: Entry) : AssistantMessage
 }
 
 /**

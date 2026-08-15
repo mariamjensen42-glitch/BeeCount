@@ -38,8 +38,13 @@ class AssistantViewModel @Inject constructor(
 
     private val today: LocalDate = LocalDate.now()
 
+    /** 消息唯一 id 生成器（LazyColumn key 需稳定唯一） */
+    private var nextMessageId = 0L
+
     private val _uiState = MutableStateFlow(AssistantUiState(today = today))
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
+
+    private fun newMessageId(): Long = ++nextMessageId
 
     init {
         viewModelScope.launch {
@@ -90,7 +95,7 @@ class AssistantViewModel @Inject constructor(
         if (trimmed.isEmpty() || _uiState.value.isParsing) return
         _uiState.update { s ->
             s.copy(
-                messages = s.messages + AssistantMessage.User(trimmed),
+                messages = s.messages + AssistantMessage.User(newMessageId(), trimmed),
                 isParsing = true,
             )
         }
@@ -104,6 +109,7 @@ class AssistantViewModel @Inject constructor(
                         } else {
                             s.copy(
                                 messages = s.messages + AssistantMessage.Assistant(
+                                    newMessageId(),
                                     result.message ?: "我没听懂这笔账，换种说法试试？"
                                 )
                             )
@@ -115,6 +121,7 @@ class AssistantViewModel @Inject constructor(
                     _uiState.update { s ->
                         s.copy(
                             messages = s.messages + AssistantMessage.Assistant(
+                                newMessageId(),
                                 "请先在右上角设置里填写你的 DeepSeek API Key"
                             ),
                             showKeySetup = true,
@@ -124,7 +131,9 @@ class AssistantViewModel @Inject constructor(
 
                 is ParseEntryUseCase.Outcome.Error -> {
                     _uiState.update { s ->
-                        s.copy(messages = s.messages + AssistantMessage.Assistant(outcome.message))
+                        s.copy(
+                            messages = s.messages + AssistantMessage.Assistant(newMessageId(), outcome.message)
+                        )
                     }
                 }
             }
@@ -142,22 +151,23 @@ class AssistantViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            runCatching {
-                confirmEntryUseCase(
+            try {
+                val entry = confirmEntryUseCase(
                     result = result,
                     editedAmount = amount,
                     editedCategoryName = categoryName,
                     originalText = text,
                 )
-            }.onSuccess { entry ->
                 _uiState.update { s ->
                     s.copy(
-                        messages = s.messages + AssistantMessage.Saved(entry),
+                        messages = s.messages + AssistantMessage.Saved(newMessageId(), entry),
                         pendingResult = null,
                         pendingOriginalText = "",
                     )
                 }
-            }.onFailure {
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _uiState.update { it.copy(transientError = "保存失败，请重试") }
             }
         }
@@ -165,8 +175,13 @@ class AssistantViewModel @Inject constructor(
 
     private fun undo(entryId: Long) {
         viewModelScope.launch {
-            runCatching { undoEntryUseCase(entryId) }
-                .onFailure { _uiState.update { it.copy(transientError = "撤销失败，请重试") } }
+            try {
+                undoEntryUseCase(entryId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(transientError = "撤销失败，请重试") }
+            }
         }
     }
 
@@ -176,16 +191,19 @@ class AssistantViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            runCatching { aiKeyRepository.saveKey(key) }
-                .onSuccess {
-                    _uiState.update { s ->
-                        s.copy(
-                            showKeySetup = false,
-                            messages = s.messages + AssistantMessage.Assistant("API Key 已保存，可以开始记账了"),
-                        )
-                    }
+            try {
+                aiKeyRepository.saveKey(key)
+                _uiState.update { s ->
+                    s.copy(
+                        showKeySetup = false,
+                        messages = s.messages + AssistantMessage.Assistant(newMessageId(), "API Key 已保存，可以开始记账了"),
+                    )
                 }
-                .onFailure { _uiState.update { it.copy(transientError = "保存失败，请重试") } }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(transientError = "保存失败，请重试") }
+            }
         }
     }
 }

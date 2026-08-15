@@ -54,7 +54,7 @@ fun ConfirmationCard(
     val typeCategories = categories.filter { it.type == type }
 
     var amountText by remember {
-        mutableStateOf(result.amount?.let { formatAmount(it) } ?: "")
+        mutableStateOf(result.amount?.let { formatMoney(it) } ?: "")
     }
     var categoryText by remember {
         mutableStateOf(result.categoryName.orEmpty())
@@ -147,4 +147,3 @@ fun ConfirmationCard(
     }
 }
 
-private fun formatAmount(amount: Double): String = "%.2f".format(amount)
