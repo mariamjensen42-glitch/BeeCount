@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -20,12 +22,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -253,9 +257,10 @@ private fun ApiKeyEditDialog(
 }
 
 /**
- * 类别管理对话框：支出/收入分组，支持新增、改名、删除。
+ * 类别管理底部弹层：支出/收入分组，支持新增、改名、删除。
  * 删除类别不影响已有账目（账目存的是类别名快照，ADR 0008）。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategoryManageDialog(
     categories: List<Category>,
@@ -266,39 +271,57 @@ private fun CategoryManageDialog(
 ) {
     var newName by remember { mutableStateOf("") }
     var newType by remember { mutableStateOf(EntryType.EXPENSE) }
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text("管理类别") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                // 新增类别
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
-                        onClick = { newType = EntryType.EXPENSE },
-                        enabled = newType != EntryType.EXPENSE,
-                    ) { Text("支出") }
-                    Spacer(Modifier.width(8.dp))
-                    OutlinedButton(
-                        onClick = { newType = EntryType.INCOME },
-                        enabled = newType != EntryType.INCOME,
-                    ) { Text("收入") }
-                    Spacer(Modifier.width(8.dp))
-                    OutlinedTextField(
-                        value = newName,
-                        onValueChange = { newName = it },
-                        label = { Text("新类别名") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        onClick = {
-                            val name = newName.trim()
-                            if (name.isNotEmpty()) onCreate(name, newType)
-                            newName = ""
-                        },
-                    ) { Text("添加") }
-                }
-                Spacer(Modifier.height(8.dp))
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp),
+        ) {
+            Text("管理类别", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "○ 预定义 / ● 自定义。删除类别不影响已有账目。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            // 新增类别
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = { newType = EntryType.EXPENSE },
+                    enabled = newType != EntryType.EXPENSE,
+                ) { Text("支出") }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = { newType = EntryType.INCOME },
+                    enabled = newType != EntryType.INCOME,
+                ) { Text("收入") }
+                Spacer(Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("新类别名") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        val name = newName.trim()
+                        if (name.isNotEmpty()) onCreate(name, newType)
+                        newName = ""
+                    },
+                ) { Text("添加") }
+            }
+            Spacer(Modifier.height(8.dp))
+            // 类别列表（限高滚动）
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 EntryType.entries.forEach { type ->
                     Text(
                         text = if (type == EntryType.EXPENSE) "支出类别" else "收入类别",
@@ -311,11 +334,14 @@ private fun CategoryManageDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onClose) { Text("完成") }
-        },
-    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onClose) { Text("完成") }
+            }
+        }
+    }
 }
 
 @Composable
