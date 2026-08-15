@@ -130,7 +130,7 @@ class ParseEntryUseCase @Inject constructor(
             |
             |示例输入：你好
             |示例输出：{"recordable": false, "message": "你好呀！告诉我一笔收支就能帮你记账，比如：昨天打车花了30块"}
-            |${if (isOcrInput) "\n|以下输入来自支付截图的 OCR 文字，请从中提取收支信息。" else ""}
+            |${if (isOcrInput) "\n|以下输入来自支付截图的 OCR 文字，请从中提取收支信息。\n|额外要求：在 JSON 中增加 \"note\" 字段，用一句不超过 15 字的中文概括这笔消费的场景或商家（如\"滴滴出行打车\"、\"星巴克消费\"），供用户在确认卡片中查看；若无法判断则省略该字段。" else ""}
         """.trimMargin()
     }
 

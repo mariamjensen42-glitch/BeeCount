@@ -184,7 +184,13 @@ class AssistantViewModel @Inject constructor(
                 }
 
                 is OcrEntryUseCase.Outcome.Parsed ->
-                    handleParseOutcome(outcome.parseOutcome, originalText = outcome.rawText)
+                    handleParseOutcome(
+                        outcome.parseOutcome,
+                        // 优先用 AI 整理的简短备注，否则回退到识别原文
+                        originalText = (outcome.parseOutcome as? ParseEntryUseCase.Outcome.Success)
+                            ?.result?.note?.takeIf { it.isNotEmpty() }
+                            ?: outcome.rawText,
+                    )
             }
             _uiState.update { it.copy(isParsing = false) }
         }
