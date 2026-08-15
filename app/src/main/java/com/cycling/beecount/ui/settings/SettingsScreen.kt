@@ -41,7 +41,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
-import com.cycling.beecount.ui.common.TagManageDialog
+import com.cycling.beecount.ui.common.TagManageSheet
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -144,7 +144,7 @@ fun SettingsScreen(
         )
     }
     if (showTagDialog) {
-        TagManageDialog(
+        TagManageSheet(
             tags = uiState.tags,
             onClose = { showTagDialog = false },
             onRename = { id, name -> onEvent(SettingsEvent.RenameTag(id, name)) },

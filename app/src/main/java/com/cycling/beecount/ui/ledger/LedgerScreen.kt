@@ -40,7 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.ui.assistant.formatMoney
-import com.cycling.beecount.ui.common.TagManageDialog
+import com.cycling.beecount.ui.common.TagManageSheet
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.IncomeGreen
 import java.time.LocalDate
@@ -101,7 +101,7 @@ fun LedgerScreen(
         }
     }
     if (uiState.showTagManage) {
-        TagManageDialog(
+        TagManageSheet(
             tags = uiState.allTags,
             onClose = { onEvent(LedgerEvent.CloseTagManage) },
             onRename = { id, name -> onEvent(LedgerEvent.RenameTag(id, name)) },
