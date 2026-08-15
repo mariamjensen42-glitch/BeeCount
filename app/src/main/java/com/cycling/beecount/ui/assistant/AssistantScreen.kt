@@ -90,7 +90,7 @@ fun AssistantScreen(
             ) {
                 if (uiState.todayEntries.isNotEmpty()) {
                     item { Text("今日已记", style = MaterialTheme.typography.titleMedium) }
-                    items(uiState.todayEntries, key = { it.id }) { entry ->
+                    items(uiState.todayEntries, key = { "entry-${it.id}" }) { entry ->
                         TodayEntryRow(entry)
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -98,7 +98,7 @@ fun AssistantScreen(
                     item { Spacer(Modifier.height(8.dp)) }
                 }
 
-                items(uiState.messages, key = { it.id }) { message ->
+                items(uiState.messages, key = { "message-${it.id}" }) { message ->
                     when (message) {
                         is AssistantMessage.User -> UserBubble(message.text)
                         is AssistantMessage.Assistant -> AssistantBubble(message.text)
