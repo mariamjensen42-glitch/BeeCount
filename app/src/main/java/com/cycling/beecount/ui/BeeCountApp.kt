@@ -6,10 +6,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -49,7 +55,8 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
 /**
  * 应用根导航：悬浮胶囊底部栏，「今日 / 账本 / 设置 / 图表」四个 tab（ADR 0009）。
  * 胶囊以覆盖层悬浮在内容之上（非 M3 NavigationBar），内容可滚动穿过胶囊下方。
- * 选中项蜂蜜金填充，未选中 outline 图标；saveState/restoreState 保留各 tab 状态。
+ * 常规宽度显示图标与文字；窄宽或字体放大时自动退化为四个等宽图标 tab，
+ * 避免把正常手机上的导航整体缩小来迁就最窄屏幕。
  */
 @Composable
 fun BeeCountApp() {
@@ -88,15 +95,21 @@ private fun FloatingPillBar(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 24.dp),
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // 360dp 手机在默认字体下仍展示文字；320dp、横屏/分屏或放大字体时使用图标模式。
+        val showLabels = maxWidth >= 320.dp && fontScale <= 1.15f
         Row(
             modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 400.dp)
                 .shadow(
                     elevation = 12.dp,
                     shape = RoundedCornerShape(28.dp),
@@ -115,31 +128,39 @@ private fun FloatingPillBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             PillTab(
+                modifier = Modifier.weight(1f),
                 label = "今日",
                 selected = currentRoute == "assistant",
                 outlineIcon = Heroicons.Outline.CalendarDays,
                 solidIcon = Heroicons.Solid.CalendarDays,
+                showLabel = showLabels,
                 onClick = { onNavigate("assistant") },
             )
             PillTab(
+                modifier = Modifier.weight(1f),
                 label = "账本",
                 selected = currentRoute == "ledger",
                 outlineIcon = Heroicons.Outline.BookOpen,
                 solidIcon = Heroicons.Solid.BookOpen,
+                showLabel = showLabels,
                 onClick = { onNavigate("ledger") },
             )
             PillTab(
+                modifier = Modifier.weight(1f),
                 label = "设置",
                 selected = currentRoute == "settings",
                 outlineIcon = Heroicons.Outline.Cog6Tooth,
                 solidIcon = Heroicons.Solid.Cog6Tooth,
+                showLabel = showLabels,
                 onClick = { onNavigate("settings") },
             )
             PillTab(
+                modifier = Modifier.weight(1f),
                 label = "图表",
                 selected = currentRoute == "analytics",
                 outlineIcon = Heroicons.Outline.ChartBar,
                 solidIcon = Heroicons.Solid.ChartBar,
+                showLabel = showLabels,
                 onClick = { onNavigate("analytics") },
             )
         }
@@ -148,10 +169,12 @@ private fun FloatingPillBar(
 
 @Composable
 private fun PillTab(
+    modifier: Modifier,
     label: String,
     selected: Boolean,
     outlineIcon: ImageVector,
     solidIcon: ImageVector,
+    showLabel: Boolean,
     onClick: () -> Unit,
 ) {
     val container by animateColorAsState(
@@ -163,23 +186,28 @@ private fun PillTab(
         label = "pillContent",
     )
     Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(18.dp))
             .background(container)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = if (showLabel) 10.dp else 0.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = if (selected) solidIcon else outlineIcon,
             contentDescription = label,
+            modifier = Modifier.size(20.dp),
             tint = content,
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = content,
-        )
+        if (showLabel) {
+            Text(
+                text = label,
+                modifier = Modifier.padding(start = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = content,
+            )
+        }
     }
 }
