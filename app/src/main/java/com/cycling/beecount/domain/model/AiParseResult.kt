@@ -16,4 +16,5 @@ data class AiParseResult(
     val categoryName: String? = null,
     val date: LocalDate? = null,
     val message: String? = null,
+    val tags: List<String> = emptyList(),
 )

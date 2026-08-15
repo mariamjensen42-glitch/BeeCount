@@ -6,8 +6,10 @@ import com.cycling.beecount.data.datasource.FailureReason
 import com.cycling.beecount.domain.ai.AiEntryJsonDecoder
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
+import com.cycling.beecount.domain.repository.TagRepository
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -40,12 +42,27 @@ class ParseEntryUseCaseTest {
         override suspend fun create(name: String, type: EntryType): Long = 99L
     }
 
+    private fun fakeTagRepository() = object : TagRepository {
+        override fun observeAll(): Flow<List<Tag>> = flowOf(
+            listOf(
+                Tag(id = 1, name = "旅行", color = 0xFF81C784, isCustom = false),
+                Tag(id = 2, name = "出差", color = 0xFF64B5F6, isCustom = false),
+            )
+        )
+
+        override suspend fun create(name: String, color: Long): Long = 88L
+        override suspend fun rename(id: Long, name: String) {}
+        override suspend fun updateColor(id: Long, color: Long) {}
+        override suspend fun delete(id: Long) {}
+    }
+
     private fun useCase(
         chat: AiChatDataSource,
         key: String? = "test-key",
     ) = ParseEntryUseCase(
         aiKeyRepository = fakeKeyRepository(key),
         categoryRepository = fakeCategoryRepository(),
+        tagRepository = fakeTagRepository(),
         aiChatDataSource = chat,
         decoder = AiEntryJsonDecoder(Json { ignoreUnknownKeys = true }),
         currentDate = { today },
@@ -167,5 +184,7 @@ class ParseEntryUseCaseTest {
         assertTrue(capturedPrompt.contains("红包"))
         assertTrue(capturedPrompt.contains("expense"))
         assertTrue(capturedPrompt.contains("income"))
+        assertTrue(capturedPrompt.contains("旅行"))
+        assertTrue(capturedPrompt.contains("tags"))
     }
 }

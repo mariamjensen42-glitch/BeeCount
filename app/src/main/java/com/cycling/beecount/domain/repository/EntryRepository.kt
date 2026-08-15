@@ -15,7 +15,13 @@ interface EntryRepository {
     /** 观察某一天的支出/收入合计 */
     fun observeTotalsOn(date: LocalDate): Flow<TodayTotals>
 
+    /** 账本页：观察全部账目（时间倒序，带各自标签） */
+    fun observeAllWithTags(): Flow<List<Entry>>
+
     suspend fun add(entry: Entry): Long
+
+    /** 入库账目并写入标签关联，同事务 */
+    suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long
 
     suspend fun delete(id: Long)
 }

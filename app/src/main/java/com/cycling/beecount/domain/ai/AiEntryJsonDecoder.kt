@@ -27,6 +27,7 @@ class AiEntryJsonDecoder @Inject constructor(
         val category: String? = null,
         val date: String? = null,
         val message: String? = null,
+        val tags: List<String>? = null,
     )
 
     /**
@@ -50,6 +51,11 @@ class AiEntryJsonDecoder @Inject constructor(
         if (category.isEmpty()) return@runCatching null
         val date = dto.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: return@runCatching null
+        val tags = dto.tags.orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(3)
         AiParseResult(
             recordable = true,
             type = type,
@@ -57,6 +63,7 @@ class AiEntryJsonDecoder @Inject constructor(
             amountRaw = amountRaw,
             categoryName = category,
             date = date,
+            tags = tags,
         )
     }.getOrNull()
 }

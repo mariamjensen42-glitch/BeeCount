@@ -7,10 +7,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cycling.beecount.data.local.BeeCountDatabase
 import com.cycling.beecount.data.local.CategoryDao
 import com.cycling.beecount.data.local.EntryDao
+import com.cycling.beecount.data.local.TagDao
 import com.cycling.beecount.data.remote.DeepSeekApi
 import com.cycling.beecount.data.remote.DeepSeekAiChatDataSource
 import com.cycling.beecount.data.datasource.AiChatDataSource
@@ -38,25 +40,71 @@ object AppModule {
             BeeCountDatabase::class.java,
             "beecount.db",
         )
+            .addMigrations(MIGRATION_1_2)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    // 预置类别种子只在数据库首次创建时写入；enum 以 name 字符串存储
+                    // 预置类别/标签种子只在数据库首次创建时写入；enum 以 name 字符串存储
                     BeeCountDatabase.SEED_CATEGORIES.forEach { entity ->
                         db.execSQL(
                             "INSERT OR IGNORE INTO categories (name, type, isCustom) VALUES (?, ?, ?)",
                             arrayOf<Any>(entity.name, entity.type.name, if (entity.isCustom) 1 else 0),
                         )
                     }
+                    BeeCountDatabase.SEED_TAGS.forEach { entity ->
+                        db.execSQL(
+                            "INSERT OR IGNORE INTO tags (name, color, isCustom) VALUES (?, ?, ?)",
+                            arrayOf<Any>(entity.name, entity.color, if (entity.isCustom) 1 else 0),
+                        )
+                    }
                 }
             })
             .build()
+
+    /** v1 → v2：新增 tags 与 entry_tags 两张表（ADR 0007），不动已有账目数据 */
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `tags` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `color` INTEGER NOT NULL,
+                    `isCustom` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `entry_tags` (
+                    `entryId` INTEGER NOT NULL,
+                    `tagId` INTEGER NOT NULL,
+                    PRIMARY KEY(`entryId`, `tagId`),
+                    FOREIGN KEY(`entryId`) REFERENCES `entries`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_entry_tags_tagId` ON `entry_tags` (`tagId`)"
+            )
+            BeeCountDatabase.SEED_TAGS.forEach { entity ->
+                db.execSQL(
+                    "INSERT OR IGNORE INTO tags (name, color, isCustom) VALUES (?, ?, ?)",
+                    arrayOf<Any>(entity.name, entity.color, if (entity.isCustom) 1 else 0),
+                )
+            }
+        }
+    }
 
     @Provides
     fun provideEntryDao(db: BeeCountDatabase): EntryDao = db.entryDao()
 
     @Provides
     fun provideCategoryDao(db: BeeCountDatabase): CategoryDao = db.categoryDao()
+
+    @Provides
+    fun provideTagDao(db: BeeCountDatabase): TagDao = db.tagDao()
 
     @Provides
     @Singleton

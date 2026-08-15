@@ -3,6 +3,7 @@ package com.cycling.beecount.ui.assistant
 import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
+import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.TodayTotals
 import java.time.LocalDate
 
@@ -10,13 +11,14 @@ import java.time.LocalDate
  * MVI 架构：助手页 UI 状态
  *
  * 对话流由 [messages] 表示：用户输入、AI 消息、确认卡片、已记反馈都是其中一条。
- * [pendingResult] 是当前等待用户确认的解析结果草稿。
+ * [pendingResult] 是当前等待用户确认的解析结果草稿（含可编辑的标签）。
  */
 data class AssistantUiState(
     val messages: List<AssistantMessage> = emptyList(),
     val pendingResult: AiParseResult? = null,
     val pendingOriginalText: String = "",
     val categories: List<Category> = emptyList(),
+    val allTags: List<Tag> = emptyList(),
     val todayEntries: List<Entry> = emptyList(),
     val todayTotals: TodayTotals = TodayTotals(),
     val today: LocalDate = LocalDate.now(),
@@ -55,6 +57,9 @@ sealed interface AssistantEvent {
 
     /** 确认卡片上修改类别 */
     data class EditCategory(val name: String) : AssistantEvent
+
+    /** 确认卡片上修改标签选择（整体替换） */
+    data class EditTags(val tags: List<String>) : AssistantEvent
 
     /** 确认入库 */
     data object Confirm : AssistantEvent

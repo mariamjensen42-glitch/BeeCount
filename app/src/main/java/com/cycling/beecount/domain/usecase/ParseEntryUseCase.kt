@@ -6,8 +6,10 @@ import com.cycling.beecount.data.datasource.FailureReason
 import com.cycling.beecount.domain.ai.AiEntryJsonDecoder
 import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.Category
+import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
+import com.cycling.beecount.domain.repository.TagRepository
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.first
 class ParseEntryUseCase @Inject constructor(
     private val aiKeyRepository: AiKeyRepository,
     private val categoryRepository: CategoryRepository,
+    private val tagRepository: TagRepository,
     private val aiChatDataSource: AiChatDataSource,
     private val decoder: AiEntryJsonDecoder,
     private val currentDate: () -> LocalDate,
@@ -47,8 +50,9 @@ class ParseEntryUseCase @Inject constructor(
         if (key.isNullOrBlank()) return Outcome.KeyMissing
 
         val categories = categoryRepository.observeAll().first()
+        val tags = tagRepository.observeAll().first()
         val today = currentDate()
-        val systemPrompt = buildSystemPrompt(categories, today)
+        val systemPrompt = buildSystemPrompt(categories, tags, today)
 
         // 最多尝试 2 次：原始请求 + 失败重试一次
         repeat(2) { attempt ->
@@ -86,11 +90,12 @@ class ParseEntryUseCase @Inject constructor(
         return Outcome.Error("网络开小差了，请稍后再试")
     }
 
-    private fun buildSystemPrompt(categories: List<Category>, today: LocalDate): String {
+    private fun buildSystemPrompt(categories: List<Category>, tags: List<Tag>, today: LocalDate): String {
         val expenseCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.EXPENSE }
             .joinToString("、") { it.name }
         val incomeCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.INCOME }
             .joinToString("、") { it.name }
+        val tagNames = tags.joinToString("、") { it.name }
         val todayText = today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         return """
             |你是一个记账助手。用户会用一句自然语言描述一笔收支，你需要把这句话解析为 JSON 并输出。
@@ -103,6 +108,7 @@ class ParseEntryUseCase @Inject constructor(
             |  "amount": 以元为单位的数字，如 30.0 或 10000.0（仅当 recordable 为 true，须将万/千换算为元）,
             |  "category": "类别名"（仅当 recordable 为 true，从下方类别列表中选择最合适的）,
             |  "date": "绝对日期 YYYY-MM-DD"（仅当 recordable 为 true，相对时间须换算为绝对日期）,
+            |  "tags": ["标签名1", "标签名2"]（仅当 recordable 为 true，最多 3 个，从下方标签列表中选择最贴合的；没有合适的给空数组）,
             |  "message": "对用户的简短回应"（仅当 recordable 为 false）
             |}
             |
@@ -114,9 +120,13 @@ class ParseEntryUseCase @Inject constructor(
             |
             |支出类别：$expenseCategories
             |收入类别：$incomeCategories
+            |标签（可选，最多选 3 个）：$tagNames
             |
             |示例输入：昨天打车花了30块
-            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "30块", "amount": 30.0, "category": "交通", "date": "$todayText"}
+            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "30块", "amount": 30.0, "category": "交通", "date": "$todayText", "tags": []}
+            |
+            |示例输入：周末给猫买了200的猫粮
+            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "200", "amount": 200.0, "category": "购物", "date": "$todayText", "tags": ["宠物"]}
             |
             |示例输入：你好
             |示例输出：{"recordable": false, "message": "你好呀！告诉我一笔收支就能帮你记账，比如：昨天打车花了30块"}

@@ -17,4 +17,5 @@ data class Entry(
     val date: LocalDate,
     val note: String,
     val createdAt: Long = System.currentTimeMillis(),
+    val tags: List<Tag> = emptyList(),
 )

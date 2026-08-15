@@ -115,9 +115,11 @@ fun AssistantScreen(
                         ConfirmationCard(
                             result = result,
                             categories = uiState.categories,
+                            tags = uiState.allTags,
                             originalText = uiState.pendingOriginalText,
                             onAmountChange = { amount -> onEvent(AssistantEvent.EditAmount(amount)) },
                             onCategoryChange = { name -> onEvent(AssistantEvent.EditCategory(name)) },
+                            onTagsChange = { tags -> onEvent(AssistantEvent.EditTags(tags)) },
                             onConfirm = { onEvent(AssistantEvent.Confirm) },
                             onDismiss = { onEvent(AssistantEvent.DismissCard) },
                         )

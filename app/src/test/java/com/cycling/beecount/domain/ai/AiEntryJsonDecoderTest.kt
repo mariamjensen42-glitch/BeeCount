@@ -106,4 +106,20 @@ class AiEntryJsonDecoderTest {
         assertTrue(result!!.recordable)
         assertEquals(10000.0, result.amount!!, 0.001)
     }
+
+    @Test
+    fun `decodes tags normalized to at most 3 distinct non blank`() {
+        val result = decoder.decode(
+            """{"recordable": true, "type": "expense", "amount_raw": "200", "amount": 200.0, "category": "购物", "date": "2026-08-14", "tags": [" 宠物 ", "宠物", "出差", "", "健身"]}"""
+        )
+        assertEquals(listOf("宠物", "出差", "健身"), result!!.tags)
+    }
+
+    @Test
+    fun `decodes missing tags as empty list`() {
+        val result = decoder.decode(
+            """{"recordable": true, "type": "expense", "amount_raw": "30", "amount": 30.0, "category": "交通", "date": "2026-08-14"}"""
+        )
+        assertTrue(result!!.tags.isEmpty())
+    }
 }

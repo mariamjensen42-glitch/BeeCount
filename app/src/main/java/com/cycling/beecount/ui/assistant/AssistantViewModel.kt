@@ -7,6 +7,7 @@ import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.usecase.ConfirmEntryUseCase
 import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
 import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
+import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ObserveTotalsOnUseCase
 import com.cycling.beecount.domain.usecase.ParseEntryUseCase
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
@@ -33,6 +34,7 @@ class AssistantViewModel @Inject constructor(
     observeEntriesOn: ObserveEntriesOnUseCase,
     observeTotalsOn: ObserveTotalsOnUseCase,
     observeCategories: ObserveCategoriesUseCase,
+    observeTags: ObserveTagsUseCase,
     private val aiKeyRepository: AiKeyRepository,
 ) : ViewModel() {
 
@@ -63,6 +65,11 @@ class AssistantViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            observeTags().collect { tags ->
+                _uiState.update { it.copy(allTags = tags) }
+            }
+        }
+        viewModelScope.launch {
             aiKeyRepository.observeKey().collect { key ->
                 _uiState.update { it.copy(hasApiKey = !key.isNullOrBlank()) }
             }
@@ -77,6 +84,9 @@ class AssistantViewModel @Inject constructor(
 
             is AssistantEvent.EditCategory ->
                 _uiState.update { s -> s.copy(pendingResult = s.pendingResult?.copy(categoryName = event.name)) }
+
+            is AssistantEvent.EditTags ->
+                _uiState.update { s -> s.copy(pendingResult = s.pendingResult?.copy(tags = event.tags)) }
 
             AssistantEvent.Confirm -> confirm()
             AssistantEvent.DismissCard ->
@@ -157,6 +167,7 @@ class AssistantViewModel @Inject constructor(
                     editedAmount = amount,
                     editedCategoryName = categoryName,
                     originalText = text,
+                    tags = result.tags,
                 )
                 _uiState.update { s ->
                     s.copy(

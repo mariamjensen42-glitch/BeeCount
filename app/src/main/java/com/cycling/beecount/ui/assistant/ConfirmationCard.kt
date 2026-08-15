@@ -1,6 +1,8 @@
 package com.cycling.beecount.ui.assistant
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -9,7 +11,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -23,16 +27,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.Tag
 import java.time.format.DateTimeFormatter
 
 /**
- * 确认卡片：展示 AI 草拟的账目，金额与类别可编辑（Q17），
+ * 确认卡片：展示 AI 草拟的账目，金额/类别/标签可编辑（Q17 + ADR 0007），
  * 类别选择支持输入新类别名（确认卡片内创建，Q13），日期/备注只读。
  * [originalText] 为用户原话，作为备注展示（Q16：原文保留）。
  */
@@ -41,9 +48,11 @@ import java.time.format.DateTimeFormatter
 fun ConfirmationCard(
     result: AiParseResult,
     categories: List<Category>,
+    tags: List<Tag>,
     originalText: String,
     onAmountChange: (Double) -> Unit,
     onCategoryChange: (String) -> Unit,
+    onTagsChange: (List<String>) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -108,6 +117,63 @@ fun ConfirmationCard(
                         },
                         label = { Text(category.name) },
                     )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // 标签：多选 chips（带颜色圆点）+ 新建（ADR 0007：卡片建标）
+            Text(
+                text = "标签（可选）",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            var newTagText by remember { mutableStateOf("") }
+            var showNewTagInput by remember { mutableStateOf(false) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                tags.forEach { tag ->
+                    FilterChip(
+                        selected = result.tags.contains(tag.name),
+                        onClick = {
+                            val next = if (result.tags.contains(tag.name)) {
+                                result.tags - tag.name
+                            } else {
+                                (result.tags + tag.name).distinct()
+                            }
+                            onTagsChange(next)
+                        },
+                        label = { Text(tag.name) },
+                        leadingIcon = {
+                            Box(
+                                Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(tag.color))
+                            )
+                        },
+                    )
+                }
+                if (showNewTagInput) {
+                    OutlinedTextField(
+                        value = newTagText,
+                        onValueChange = { newTagText = it },
+                        label = { Text("新标签名") },
+                        singleLine = true,
+                        modifier = Modifier.width(140.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            val name = newTagText.trim()
+                            if (name.isNotEmpty()) {
+                                onTagsChange((result.tags + name).distinct())
+                            }
+                            newTagText = ""
+                            showNewTagInput = false
+                        },
+                    ) { Text("添加") }
+                } else {
+                    TextButton(onClick = { showNewTagInput = true }) { Text("+ 新建") }
                 }
             }
 
