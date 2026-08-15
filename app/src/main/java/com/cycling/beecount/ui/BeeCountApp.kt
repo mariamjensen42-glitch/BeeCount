@@ -1,17 +1,28 @@
 package com.cycling.beecount.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,9 +30,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cycling.beecount.ui.assistant.AssistantRoute
 import com.cycling.beecount.ui.ledger.LedgerRoute
+import com.cycling.beecount.ui.theme.HoneyAmber
+import com.cycling.beecount.ui.theme.OnHoneyAmber
+import com.woowla.compose.icon.collections.heroicons.*
+import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
+import com.woowla.compose.icon.collections.heroicons.heroicons.Solid
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.BookOpen
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CalendarDays
+import com.woowla.compose.icon.collections.heroicons.heroicons.solid.BookOpen
+import com.woowla.compose.icon.collections.heroicons.heroicons.solid.CalendarDays
 
 /**
- * 应用根导航：底部「今日 / 账本」两个 tab（ADR 0006）。
+ * 应用根导航：悬浮胶囊底部栏，「今日 / 账本」两个 tab（ADR 0006）。
+ * 视觉为定制悬浮胶囊（非 M3 NavigationBar）：选中项蜂蜜金填充，未选中 outline 图标。
  * 用 saveState/restoreState 保留各 tab 的页面状态。
  */
 @Composable
@@ -32,32 +53,16 @@ fun BeeCountApp() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = currentRoute == "assistant",
-                    onClick = {
-                        navController.navigate("assistant") {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Filled.Home, contentDescription = null) },
-                    label = { Text("今日") },
-                )
-                NavigationBarItem(
-                    selected = currentRoute == "ledger",
-                    onClick = {
-                        navController.navigate("ledger") {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Filled.List, contentDescription = null) },
-                    label = { Text("账本") },
-                )
-            }
+            FloatingPillBar(
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         NavHost(
@@ -68,5 +73,92 @@ fun BeeCountApp() {
             composable("assistant") { AssistantRoute() }
             composable("ledger") { LedgerRoute() }
         }
+    }
+}
+
+@Composable
+private fun FloatingPillBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(top = 10.dp, bottom = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .shadow(
+                    elevation = 12.dp,
+                    shape = RoundedCornerShape(28.dp),
+                )
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = RoundedCornerShape(28.dp),
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(28.dp),
+                )
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PillTab(
+                label = "今日",
+                selected = currentRoute == "assistant",
+                outlineIcon = Heroicons.Outline.CalendarDays,
+                solidIcon = Heroicons.Solid.CalendarDays,
+                onClick = { onNavigate("assistant") },
+            )
+            PillTab(
+                label = "账本",
+                selected = currentRoute == "ledger",
+                outlineIcon = Heroicons.Outline.BookOpen,
+                solidIcon = Heroicons.Solid.BookOpen,
+                onClick = { onNavigate("ledger") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PillTab(
+    label: String,
+    selected: Boolean,
+    outlineIcon: ImageVector,
+    solidIcon: ImageVector,
+    onClick: () -> Unit,
+) {
+    val container by animateColorAsState(
+        targetValue = if (selected) HoneyAmber else Color.Transparent,
+        label = "pillContainer",
+    )
+    val content by animateColorAsState(
+        targetValue = if (selected) OnHoneyAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "pillContent",
+    )
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(container)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = if (selected) solidIcon else outlineIcon,
+            contentDescription = label,
+            tint = content,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = content,
+        )
     }
 }
