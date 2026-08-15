@@ -3,7 +3,6 @@ package com.cycling.beecount.ui.assistant
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
-import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.usecase.ConfirmEntryUseCase
 import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
 import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
@@ -35,7 +34,6 @@ class AssistantViewModel @Inject constructor(
     observeTotalsOn: ObserveTotalsOnUseCase,
     observeCategories: ObserveCategoriesUseCase,
     observeTags: ObserveTagsUseCase,
-    private val aiKeyRepository: AiKeyRepository,
 ) : ViewModel() {
 
     private val today: LocalDate = LocalDate.now()
@@ -69,11 +67,6 @@ class AssistantViewModel @Inject constructor(
                 _uiState.update { it.copy(allTags = tags) }
             }
         }
-        viewModelScope.launch {
-            aiKeyRepository.observeKey().collect { key ->
-                _uiState.update { it.copy(hasApiKey = !key.isNullOrBlank()) }
-            }
-        }
     }
 
     fun onEvent(event: AssistantEvent) {
@@ -93,9 +86,6 @@ class AssistantViewModel @Inject constructor(
                 _uiState.update { it.copy(pendingResult = null, pendingOriginalText = "") }
 
             is AssistantEvent.Undo -> undo(event.entryId)
-            is AssistantEvent.SaveApiKey -> saveApiKey(event.key)
-            AssistantEvent.CloseKeySetup -> _uiState.update { it.copy(showKeySetup = false) }
-            AssistantEvent.OpenKeySetup -> _uiState.update { it.copy(showKeySetup = true) }
             AssistantEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
         }
     }
@@ -132,9 +122,8 @@ class AssistantViewModel @Inject constructor(
                         s.copy(
                             messages = s.messages + AssistantMessage.Assistant(
                                 newMessageId(),
-                                "请先在右上角设置里填写你的 DeepSeek API Key"
-                            ),
-                            showKeySetup = true,
+                                "请先到底部「设置」里填写你的 DeepSeek API Key"
+                            )
                         )
                     }
                 }
@@ -192,28 +181,6 @@ class AssistantViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(transientError = "撤销失败，请重试") }
-            }
-        }
-    }
-
-    private fun saveApiKey(key: String) {
-        if (key.isBlank()) {
-            _uiState.update { it.copy(transientError = "Key 不能为空") }
-            return
-        }
-        viewModelScope.launch {
-            try {
-                aiKeyRepository.saveKey(key)
-                _uiState.update { s ->
-                    s.copy(
-                        showKeySetup = false,
-                        messages = s.messages + AssistantMessage.Assistant(newMessageId(), "API Key 已保存，可以开始记账了"),
-                    )
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _uiState.update { it.copy(transientError = "保存失败，请重试") }
             }
         }
     }

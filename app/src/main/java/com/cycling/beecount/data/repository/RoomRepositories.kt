@@ -45,6 +45,10 @@ class RoomEntryRepository @Inject constructor(
     override suspend fun delete(id: Long) {
         entryDao.deleteById(id)
     }
+
+    override suspend fun clearAll() {
+        entryDao.clearAll()
+    }
 }
 
 @Singleton
@@ -59,6 +63,10 @@ class RoomCategoryRepository @Inject constructor(
         val entity = CategoryEntity(name = name, type = type, isCustom = true)
         return categoryDao.insert(entity)
     }
+
+    override suspend fun rename(id: Long, name: String) = categoryDao.rename(id, name)
+
+    override suspend fun delete(id: Long) = categoryDao.deleteById(id)
 }
 
 @Singleton

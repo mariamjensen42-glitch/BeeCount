@@ -13,4 +13,7 @@ interface AiKeyRepository {
     suspend fun getKey(): String?
 
     suspend fun saveKey(key: String)
+
+    /** 清除已保存的 Key */
+    suspend fun clearKey()
 }

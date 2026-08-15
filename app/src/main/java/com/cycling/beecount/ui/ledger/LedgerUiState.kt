@@ -30,8 +30,8 @@ sealed interface LedgerEvent {
 
     data class RenameTag(val id: Long, val name: String) : LedgerEvent
 
-    /** 循环切换标签颜色（点色点换下一个板色） */
-    data class CycleTagColor(val id: Long) : LedgerEvent
+    /** 更新标签颜色（对话框内点色点已算好下一个板色） */
+    data class UpdateTagColor(val id: Long, val color: Long) : LedgerEvent
 
     data class DeleteTag(val id: Long) : LedgerEvent
 

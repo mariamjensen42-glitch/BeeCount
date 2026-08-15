@@ -24,6 +24,9 @@ interface EntryRepository {
     suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long
 
     suspend fun delete(id: Long)
+
+    /** 清空全部账目（ADR 0008：只清账目，类别/标签保留） */
+    suspend fun clearAll()
 }
 
 data class TodayTotals(

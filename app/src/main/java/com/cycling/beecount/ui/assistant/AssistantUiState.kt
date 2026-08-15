@@ -22,9 +22,7 @@ data class AssistantUiState(
     val todayEntries: List<Entry> = emptyList(),
     val todayTotals: TodayTotals = TodayTotals(),
     val today: LocalDate = LocalDate.now(),
-    val hasApiKey: Boolean = false,
     val isParsing: Boolean = false,
-    val showKeySetup: Boolean = false,
     val transientError: String? = null,
 )
 
@@ -69,15 +67,6 @@ sealed interface AssistantEvent {
 
     /** 撤销一条已入库账目 */
     data class Undo(val entryId: Long) : AssistantEvent
-
-    /** 保存 API Key */
-    data class SaveApiKey(val key: String) : AssistantEvent
-
-    /** 关闭 Key 设置 */
-    data object CloseKeySetup : AssistantEvent
-
-    /** 打开 Key 设置 */
-    data object OpenKeySetup : AssistantEvent
 
     /** 清除瞬时错误提示 */
     data object DismissError : AssistantEvent

@@ -52,6 +52,10 @@ interface EntryDao {
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    /** 清空全部账目（ADR 0008：只清账目，保留类别/标签；entry_tags 随外键级联清除） */
+    @Query("DELETE FROM entries")
+    suspend fun clearAll()
+
     data class TotalsRow(
         val expense: Double,
         val income: Double,
@@ -118,4 +122,11 @@ interface CategoryDao {
 
     @Insert
     suspend fun insert(category: CategoryEntity): Long
+
+    @Query("UPDATE categories SET name = :name WHERE id = :id")
+    suspend fun rename(id: Long, name: String)
+
+    /** 删除类别：账目存的是类别名快照，已有账目不受影响 */
+    @Query("DELETE FROM categories WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

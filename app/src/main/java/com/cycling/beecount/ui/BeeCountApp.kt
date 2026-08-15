@@ -30,6 +30,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cycling.beecount.ui.assistant.AssistantRoute
 import com.cycling.beecount.ui.ledger.LedgerRoute
+import com.cycling.beecount.ui.settings.SettingsRoute
 import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.OnHoneyAmber
 import com.woowla.compose.icon.collections.heroicons.*
@@ -37,8 +38,10 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.Solid
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.BookOpen
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CalendarDays
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Cog6Tooth
 import com.woowla.compose.icon.collections.heroicons.heroicons.solid.BookOpen
 import com.woowla.compose.icon.collections.heroicons.heroicons.solid.CalendarDays
+import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
 
 /**
  * 应用根导航：悬浮胶囊底部栏，「今日 / 账本」两个 tab（ADR 0006）。
@@ -59,6 +62,7 @@ fun BeeCountApp() {
         ) {
             composable("assistant") { AssistantRoute() }
             composable("ledger") { LedgerRoute() }
+            composable("settings") { SettingsRoute() }
         }
         FloatingPillBar(
             currentRoute = currentRoute,
@@ -120,6 +124,13 @@ private fun FloatingPillBar(
                 solidIcon = Heroicons.Solid.BookOpen,
                 onClick = { onNavigate("ledger") },
             )
+            PillTab(
+                label = "设置",
+                selected = currentRoute == "settings",
+                outlineIcon = Heroicons.Outline.Cog6Tooth,
+                solidIcon = Heroicons.Solid.Cog6Tooth,
+                onClick = { onNavigate("settings") },
+            )
         }
     }
 }
@@ -145,7 +156,7 @@ private fun PillTab(
             .clip(RoundedCornerShape(20.dp))
             .background(container)
             .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

@@ -21,13 +21,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -82,14 +80,7 @@ fun AssistantScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("AI 记账助手") },
-                actions = {
-                    IconButton(onClick = { onEvent(AssistantEvent.OpenKeySetup) }) {
-                        Text("设置")
-                    }
-                },
-            )
+            TopAppBar(title = { Text("AI 记账助手") })
         },
     ) { innerPadding ->
         Column(
@@ -165,13 +156,6 @@ fun AssistantScreen(
                     .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 64.dp),
             )
         }
-    }
-
-    if (uiState.showKeySetup) {
-        ApiKeyDialog(
-            onSave = { key -> onEvent(AssistantEvent.SaveApiKey(key)) },
-            onDismiss = { onEvent(AssistantEvent.CloseKeySetup) },
-        )
     }
 }
 
@@ -325,42 +309,6 @@ private fun SummaryEntryRow(entry: Entry) {
             color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
         )
     }
-}
-
-@Composable
-private fun ApiKeyDialog(
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var keyText by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("设置 DeepSeek API Key") },
-        text = {
-            Column {
-                Text(
-                    "这是个人自用应用：请输入你自己的 DeepSeek API Key，请求将直接发往 api.deepseek.com。",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = keyText,
-                    onValueChange = { keyText = it },
-                    label = { Text("API Key") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(keyText) }, enabled = keyText.isNotBlank()) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
 }
 
 /** 用户消息：右对齐，非对称圆角（右下角收进，聊天气泡感） */

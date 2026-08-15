@@ -28,6 +28,7 @@ class ParseEntryUseCaseTest {
         override fun observeKey(): Flow<String?> = flowOf(key)
         override suspend fun getKey(): String? = key
         override suspend fun saveKey(key: String) {}
+        override suspend fun clearKey() {}
     }
 
     private fun fakeCategoryRepository() = object : CategoryRepository {
@@ -40,6 +41,8 @@ class ParseEntryUseCaseTest {
         )
 
         override suspend fun create(name: String, type: EntryType): Long = 99L
+        override suspend fun rename(id: Long, name: String) {}
+        override suspend fun delete(id: Long) {}
     }
 
     private fun fakeTagRepository() = object : TagRepository {

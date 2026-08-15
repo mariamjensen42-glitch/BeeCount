@@ -13,4 +13,9 @@ interface CategoryRepository {
 
     /** 创建自定义类别，返回新类别 id */
     suspend fun create(name: String, type: EntryType): Long
+
+    suspend fun rename(id: Long, name: String)
+
+    /** 删除类别：账目存的是类别名快照，已有账目不受影响 */
+    suspend fun delete(id: Long)
 }

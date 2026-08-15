@@ -3,7 +3,6 @@ package com.cycling.beecount.ui.ledger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.Entry
-import com.cycling.beecount.domain.model.TAG_COLOR_PALETTE
 import com.cycling.beecount.domain.repository.TodayTotals
 import com.cycling.beecount.domain.usecase.ManageTagUseCase
 import com.cycling.beecount.domain.usecase.ObserveAllEntriesUseCase
@@ -93,12 +92,8 @@ class LedgerViewModel @Inject constructor(
             is LedgerEvent.DeleteTag -> launchManage { manageTagUseCase.delete(event.id) }
             LedgerEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
 
-            is LedgerEvent.CycleTagColor -> {
-                val tag = _uiState.value.allTags.firstOrNull { it.id == event.id } ?: return
-                val currentIndex = TAG_COLOR_PALETTE.indexOf(tag.color)
-                val next = TAG_COLOR_PALETTE[(currentIndex + 1) % TAG_COLOR_PALETTE.size]
-                launchManage { manageTagUseCase.updateColor(event.id, next) }
-            }
+            is LedgerEvent.UpdateTagColor ->
+                launchManage { manageTagUseCase.updateColor(event.id, event.color) }
         }
     }
 
