@@ -7,12 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,8 +42,8 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.solid.CalendarDay
 
 /**
  * 应用根导航：悬浮胶囊底部栏，「今日 / 账本」两个 tab（ADR 0006）。
- * 视觉为定制悬浮胶囊（非 M3 NavigationBar）：选中项蜂蜜金填充，未选中 outline 图标。
- * 用 saveState/restoreState 保留各 tab 的页面状态。
+ * 胶囊以覆盖层悬浮在内容之上（非 M3 NavigationBar），内容可滚动穿过胶囊下方。
+ * 选中项蜂蜜金填充，未选中 outline 图标；saveState/restoreState 保留各 tab 状态。
  */
 @Composable
 fun BeeCountApp() {
@@ -51,28 +51,26 @@ fun BeeCountApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    Scaffold(
-        bottomBar = {
-            FloatingPillBar(
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = "assistant",
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             composable("assistant") { AssistantRoute() }
             composable("ledger") { LedgerRoute() }
         }
+        FloatingPillBar(
+            currentRoute = currentRoute,
+            onNavigate = { route ->
+                navController.navigate(route) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
@@ -80,12 +78,13 @@ fun BeeCountApp() {
 private fun FloatingPillBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(top = 10.dp, bottom = 18.dp),
+            .padding(bottom = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(

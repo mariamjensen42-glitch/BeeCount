@@ -170,7 +170,13 @@ private fun LedgerList(entries: List<Entry>, modifier: Modifier = Modifier) {
     }
     LazyColumn(
         modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        // bottom 留白让最后一项能滚到悬浮胶囊上方（覆盖式悬浮导航）
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 96.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         groupedByDate.forEach { (date, dayEntries) ->
