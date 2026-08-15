@@ -1,8 +1,12 @@
 package com.cycling.beecount.ui.assistant
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,10 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -28,19 +35,22 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.ui.theme.ExpenseRed
+import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.IncomeGreen
 
 @Composable
@@ -54,6 +64,11 @@ fun AssistantRoute(
     )
 }
 
+/**
+ * 今日页布局（对话优先）：
+ * 顶部为可展开的今日摘要卡（支出/收入 + 今日已记），主体为对话流，
+ * 底部为输入框。已记反馈以 SavedRow 出现在对话流中，历史在账本页查看。
+ */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantScreen(
@@ -80,24 +95,23 @@ fun AssistantScreen(
                 .padding(innerPadding)
                 .imePadding(),
         ) {
-            TodayTotalsSection(uiState, Modifier.padding(horizontal = 16.dp))
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            TodaySummaryCard(
+                uiState = uiState,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
-            // 今日已记列表 + 对话流共用一个 LazyColumn，账目列表在上、对话在下
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 state = rememberLazyListState(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (uiState.todayEntries.isNotEmpty()) {
-                    item { Text("今日已记", style = MaterialTheme.typography.titleMedium) }
-                    items(uiState.todayEntries, key = { "entry-${it.id}" }) { entry ->
-                        TodayEntryRow(entry)
+                if (uiState.messages.isEmpty() && uiState.pendingResult == null && !uiState.isParsing) {
+                    item {
+                        AssistantBubble(
+                            "你好呀！我是 BeeCount 记账助手 🐝\n告诉我一笔收支就能帮你记下，比如：昨天打车花了30块"
+                        )
                     }
-                    item { Spacer(Modifier.height(8.dp)) }
-                    item { HorizontalDivider() }
-                    item { Spacer(Modifier.height(8.dp)) }
                 }
 
                 items(uiState.messages, key = { "message-${it.id}" }) { message ->
@@ -158,6 +172,90 @@ fun AssistantScreen(
     }
 }
 
+/**
+ * 今日摘要卡：支出/收入合计 + 可展开的今日已记（取代旧版顶部一行文字 + 混排列表）。
+ */
+@Composable
+private fun TodaySummaryCard(
+    uiState: AssistantUiState,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "今日支出 ¥${formatMoney(uiState.todayTotals.expense)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = ExpenseRed,
+                )
+                Text(
+                    text = "今日收入 ¥${formatMoney(uiState.todayTotals.income)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = IncomeGreen,
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
+                    if (uiState.todayEntries.isEmpty()) {
+                        Text(
+                            text = "今天还没记账，说一句话试试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        uiState.todayEntries.forEach { entry ->
+                            SummaryEntryRow(entry)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryEntryRow(entry: Entry) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(entry.categoryName, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                entry.note.ifBlank { entry.amountRaw },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
+        )
+    }
+}
+
 @Composable
 private fun ApiKeyDialog(
     onSave: (String) -> Unit,
@@ -194,49 +292,7 @@ private fun ApiKeyDialog(
     )
 }
 
-@Composable
-private fun TodayTotalsSection(uiState: AssistantUiState, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(
-            text = "今日支出 ¥${formatMoney(uiState.todayTotals.expense)}",
-            style = MaterialTheme.typography.titleMedium,
-            color = ExpenseRed,
-        )
-        Text(
-            text = "今日收入 ¥${formatMoney(uiState.todayTotals.income)}",
-            style = MaterialTheme.typography.titleMedium,
-            color = IncomeGreen,
-        )
-    }
-}
-
-@Composable
-private fun TodayEntryRow(entry: com.cycling.beecount.domain.model.Entry) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(entry.categoryName, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    entry.note.ifBlank { entry.amountRaw },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
-            )
-        }
-    }
-}
-
+/** 用户消息：右对齐，非对称圆角（右下角收进，聊天气泡感） */
 @Composable
 private fun UserBubble(text: String) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
@@ -244,18 +300,44 @@ private fun UserBubble(text: String) {
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
             ),
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomEnd = 4.dp,
+                bottomStart = 16.dp,
+            ),
         ) {
             Text(text, modifier = Modifier.padding(12.dp))
         }
     }
 }
 
+/** 助手消息：带头像（🐝），非对称圆角（左下角收进） */
 @Composable
 private fun AssistantBubble(text: String) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(HoneyAmber),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("🐝", fontSize = 14.sp)
+        }
+        Spacer(Modifier.width(8.dp))
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomEnd = 16.dp,
+                bottomStart = 4.dp,
             ),
         ) {
             Text(text, modifier = Modifier.padding(12.dp))
@@ -264,7 +346,7 @@ private fun AssistantBubble(text: String) {
 }
 
 @Composable
-private fun SavedRow(entry: com.cycling.beecount.domain.model.Entry, onUndo: (Long) -> Unit) {
+private fun SavedRow(entry: Entry, onUndo: (Long) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
