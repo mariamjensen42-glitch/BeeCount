@@ -6,6 +6,12 @@ import java.time.YearMonth
 /** 图表页时间粒度（ADR 0009）：月度报表 / 年度报告 */
 enum class AnalyticsGranularity { MONTH, YEAR }
 
+enum class HeatmapMetric(val label: String) {
+    EXPENSE("支出金额"),
+    ENTRY_COUNT("记账笔数"),
+    ACTIVE_DAY("记账天数"),
+}
+
 /**
  * MVI 架构：图表页 UI 状态。
  * [granularity] 决定展示月度报表还是年度报告，
@@ -15,6 +21,8 @@ data class AnalyticsUiState(
     val granularity: AnalyticsGranularity = AnalyticsGranularity.MONTH,
     val selectedMonth: YearMonth = YearMonth.now(),
     val selectedYear: Int = Year.now().value,
+    val heatmapMetric: HeatmapMetric = HeatmapMetric.EXPENSE,
+    val selectedHeatmapDate: java.time.LocalDate? = null,
 )
 
 /** MVI 架构：图表页事件 */
@@ -31,4 +39,8 @@ sealed interface AnalyticsEvent {
     data class ShiftYear(val delta: Int) : AnalyticsEvent
 
     data object GoToCurrentYear : AnalyticsEvent
+
+    data class SelectHeatmapMetric(val metric: HeatmapMetric) : AnalyticsEvent
+
+    data class SelectHeatmapDate(val date: java.time.LocalDate) : AnalyticsEvent
 }

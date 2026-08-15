@@ -1,5 +1,6 @@
 package com.cycling.beecount.domain.model
 
+import java.time.LocalDate
 import java.time.YearMonth
 
 /**
@@ -38,6 +39,20 @@ data class MonthlyExpensePoint(
     val amount: Double,
 )
 
+/**
+ * 年度热力图的单日摘要。
+ *
+ * 每个年度内日期恰好对应一个摘要；[expense] 只累计支出，[entryCount] 统计当天全部已入库账目。
+ */
+data class AnnualHeatmapDay(
+    val date: LocalDate,
+    val expense: Double,
+    val entryCount: Int,
+) {
+    val hasEntries: Boolean
+        get() = entryCount > 0
+}
+
 /** 年度高亮：图表页「年度」粒度的 4 格数字卡 */
 data class AnnualHighlights(
     val busiestMonth: YearMonth?,
@@ -56,5 +71,7 @@ data class AnnualAnalytics(
     val categoryRanks: List<CategoryRank>,
     /** 1..12 月每月一个点，全月铺满 */
     val monthlyExpense: List<MonthlyExpensePoint>,
+    /** 1 月 1 日至 12 月 31 日每天一个摘要，用于年度热力图 */
+    val dailyHeatmap: List<AnnualHeatmapDay>,
     val highlights: AnnualHighlights,
 )

@@ -77,10 +77,23 @@ class AnalyticsViewModel @Inject constructor(
                 _uiState.update { state -> state.copy(selectedMonth = YearMonth.now()) }
 
             is AnalyticsEvent.ShiftYear ->
-                _uiState.update { state -> state.copy(selectedYear = state.selectedYear + event.delta) }
+                _uiState.update { state ->
+                    state.copy(
+                        selectedYear = state.selectedYear + event.delta,
+                        selectedHeatmapDate = null,
+                    )
+                }
 
             AnalyticsEvent.GoToCurrentYear ->
-                _uiState.update { state -> state.copy(selectedYear = Year.now().value) }
+                _uiState.update { state ->
+                    state.copy(selectedYear = Year.now().value, selectedHeatmapDate = null)
+                }
+
+            is AnalyticsEvent.SelectHeatmapMetric ->
+                _uiState.update { state -> state.copy(heatmapMetric = event.metric) }
+
+            is AnalyticsEvent.SelectHeatmapDate ->
+                _uiState.update { state -> state.copy(selectedHeatmapDate = event.date) }
         }
     }
 }

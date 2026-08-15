@@ -6,7 +6,9 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BuildAnnualAnalyticsUseCaseTest {
@@ -57,6 +59,53 @@ class BuildAnnualAnalyticsUseCaseTest {
         assertEquals(0.0, result.monthlyExpense[1].amount, 0.001)
         assertEquals(300.0, result.monthlyExpense[2].amount, 0.001)
         assertEquals(20.0, result.monthlyExpense[11].amount, 0.001)
+    }
+
+    @Test
+    fun `builds a zero filled daily heatmap with expense and all entry counts`() = runTest {
+        val repo = FakeEntryRepository(entries)
+        val result = BuildAnnualAnalyticsUseCase(repo)(year).first()
+
+        assertEquals(365, result.dailyHeatmap.size)
+        assertEquals(LocalDate.of(2026, 1, 1), result.dailyHeatmap.first().date)
+        assertEquals(LocalDate.of(2026, 12, 31), result.dailyHeatmap.last().date)
+
+        val januaryFifth = result.dailyHeatmap.first { it.date == LocalDate.of(2026, 1, 5) }
+        assertEquals(100.0, januaryFifth.expense, 0.001)
+        assertEquals(1, januaryFifth.entryCount)
+        assertTrue(januaryFifth.hasEntries)
+
+        val marchTenth = result.dailyHeatmap.first { it.date == LocalDate.of(2026, 3, 10) }
+        assertEquals(300.0, marchTenth.expense, 0.001)
+        assertEquals(2, marchTenth.entryCount)
+        assertTrue(marchTenth.hasEntries)
+
+        val emptyDay = result.dailyHeatmap.first { it.date == LocalDate.of(2026, 2, 1) }
+        assertEquals(0.0, emptyDay.expense, 0.001)
+        assertEquals(0, emptyDay.entryCount)
+        assertFalse(emptyDay.hasEntries)
+    }
+
+    @Test
+    fun `daily heatmap includes leap day`() = runTest {
+        val leapYear = 2024
+        val leapDayEntry = Entry(
+            id = 1,
+            type = EntryType.INCOME,
+            amount = 100.0,
+            amountRaw = "100.0",
+            categoryName = "红包",
+            date = LocalDate.of(leapYear, 2, 29),
+            note = "",
+        )
+
+        val result = BuildAnnualAnalyticsUseCase(FakeEntryRepository(listOf(leapDayEntry)))(leapYear).first()
+
+        assertEquals(366, result.dailyHeatmap.size)
+        val leapDay = result.dailyHeatmap.first { it.date == LocalDate.of(leapYear, 2, 29) }
+        assertEquals(0.0, leapDay.expense, 0.001)
+        assertEquals(1, leapDay.entryCount)
+        assertTrue(leapDay.hasEntries)
     }
 
     @Test

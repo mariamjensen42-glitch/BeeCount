@@ -37,6 +37,7 @@ private fun List<Entry>.toAnnualAnalytics(year: Int): AnnualAnalytics {
         entryCount = totals.entryCount,
         categoryRanks = AnalyticsAggregator.expenseRanks(this),
         monthlyExpense = monthly,
+        dailyHeatmap = AnalyticsAggregator.annualHeatmap(year, this),
         highlights = AnnualHighlights(
             busiestMonth = busiest?.month,
             busiestAmount = busiest?.amount ?: 0.0,

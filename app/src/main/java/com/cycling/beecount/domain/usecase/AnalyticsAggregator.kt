@@ -1,10 +1,12 @@
 package com.cycling.beecount.domain.usecase
 
+import com.cycling.beecount.domain.model.AnnualHeatmapDay
 import com.cycling.beecount.domain.model.CategoryRank
 import com.cycling.beecount.domain.model.DailyExpense
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.MonthlyExpensePoint
+import java.time.LocalDate
 import java.time.YearMonth
 
 /** 区间合计（支出/收入/笔数），供月度与年度用例共用 */
@@ -52,6 +54,28 @@ internal object AnalyticsAggregator {
         return (1..12).map { month ->
             MonthlyExpensePoint(YearMonth.of(year, month), byMonth[month]?.sumOf { it.amount } ?: 0.0)
         }
+    }
+
+    /**
+     * 年度热力图逐日摘要：全年每个日期均有一个点。
+     * 支出金额只汇总支出，笔数与是否记账涵盖当天全部已入库账目。
+     */
+    fun annualHeatmap(year: Int, entries: List<Entry>): List<AnnualHeatmapDay> {
+        val entriesByDate = entries.groupBy { it.date }
+        val start = LocalDate.of(year, 1, 1)
+        val end = LocalDate.of(year, 12, 31)
+        return generateSequence(start) { date ->
+            date.takeIf { it < end }?.plusDays(1)
+        }.map { date ->
+            val entriesOnDate = entriesByDate[date].orEmpty()
+            AnnualHeatmapDay(
+                date = date,
+                expense = entriesOnDate
+                    .filter { it.type == EntryType.EXPENSE }
+                    .sumOf { it.amount },
+                entryCount = entriesOnDate.size,
+            )
+        }.toList()
     }
 
     /** 日均支出：支出合计 ÷ 有支出的天数（不 ÷365，避免未记账的日子拉低均值） */
