@@ -609,7 +609,7 @@ private fun AnnualHeatmapCard(
     val selectedWeek = selected?.let { (it.date.toEpochDay() - first.toEpochDay()).toInt() / 7 } ?: 0
     val gridScrollState = rememberScrollState()
     LaunchedEffect(selected?.date, first) {
-        gridScrollState.scrollTo((selectedWeek * 51).coerceAtLeast(0))
+        gridScrollState.scrollTo((selectedWeek * 17).coerceAtLeast(0))
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -651,7 +651,7 @@ private fun AnnualHeatmapCard(
                                 text = monthLabel?.let { "${it}月" } ?: "",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(51.dp),
+                                modifier = Modifier.width(17.dp),
                             )
                         }
                     }
@@ -664,7 +664,9 @@ private fun AnnualHeatmapCard(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                             repeat(weeks) { week ->
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
                                     repeat(7) { dayIndex ->
                                         val date = first.plusDays((week * 7 + dayIndex).toLong())
                                         val item = dayByDate[date]
@@ -713,8 +715,8 @@ private fun HeatmapCell(day: AnnualHeatmapDay?, metric: HeatmapMetric, level: In
     val color = if (day == null || !enabled) Color.Transparent else base.copy(alpha = listOf(0f, .24f, .45f, .7f, 1f)[level])
     Box(
         modifier = Modifier
-            .width(48.dp)
-            .height(48.dp)
+            .width(14.dp)
+            .height(14.dp)
             .semantics {
                 contentDescription = day?.let {
                     "${it.date}，支出 ${formatMoney(it.expense)} 元，${it.entryCount} 笔，${if (it.hasEntries) "已记账" else "未记账"}"
