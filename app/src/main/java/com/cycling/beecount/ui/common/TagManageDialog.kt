@@ -23,6 +23,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +50,9 @@ fun TagManageSheet(
     onUpdateColor: (id: Long, color: Long) -> Unit,
     onDelete: (id: Long) -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onClose) {
+    // skipPartiallyExpanded：默认直接展开到内容全高，而不是先露出一部分
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
