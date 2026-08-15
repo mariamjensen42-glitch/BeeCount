@@ -42,7 +42,7 @@ class ParseEntryUseCase @Inject constructor(
         data class Error(val message: String) : Outcome
     }
 
-    suspend operator fun invoke(input: String): Outcome {
+    suspend operator fun invoke(input: String, isOcrInput: Boolean = false): Outcome {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return Outcome.Error("请输入要记账的内容")
 
@@ -52,7 +52,7 @@ class ParseEntryUseCase @Inject constructor(
         val categories = categoryRepository.observeAll().first()
         val tags = tagRepository.observeAll().first()
         val today = currentDate()
-        val systemPrompt = buildSystemPrompt(categories, tags, today)
+        val systemPrompt = buildSystemPrompt(categories, tags, today, isOcrInput)
 
         // 最多尝试 2 次：原始请求 + 失败重试一次
         repeat(2) { attempt ->
@@ -90,7 +90,7 @@ class ParseEntryUseCase @Inject constructor(
         return Outcome.Error("网络开小差了，请稍后再试")
     }
 
-    private fun buildSystemPrompt(categories: List<Category>, tags: List<Tag>, today: LocalDate): String {
+    private fun buildSystemPrompt(categories: List<Category>, tags: List<Tag>, today: LocalDate, isOcrInput: Boolean = false): String {
         val expenseCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.EXPENSE }
             .joinToString("、") { it.name }
         val incomeCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.INCOME }
@@ -130,6 +130,7 @@ class ParseEntryUseCase @Inject constructor(
             |
             |示例输入：你好
             |示例输出：{"recordable": false, "message": "你好呀！告诉我一笔收支就能帮你记账，比如：昨天打车花了30块"}
+            |${if (isOcrInput) "\n|以下输入来自支付截图的 OCR 文字，请从中提取收支信息。" else ""}
         """.trimMargin()
     }
 

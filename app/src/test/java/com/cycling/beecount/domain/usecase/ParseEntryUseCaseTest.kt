@@ -173,7 +173,7 @@ class ParseEntryUseCaseTest {
     }
 
     @Test
-    fun `builds prompt with today date and categories`() = runTest {
+    fun `isOcrInput=true appends ocr context to system prompt`() = runTest {
         var capturedPrompt = ""
         val chat = object : AiChatDataSource {
             override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult {
@@ -181,13 +181,20 @@ class ParseEntryUseCaseTest {
                 return AiChatResult.Content("""{"recordable": false, "message": "ok"}""")
             }
         }
-        useCase(chat)("你好")
-        assertTrue(capturedPrompt.contains("2026-08-15"))
-        assertTrue(capturedPrompt.contains("交通"))
-        assertTrue(capturedPrompt.contains("红包"))
-        assertTrue(capturedPrompt.contains("expense"))
-        assertTrue(capturedPrompt.contains("income"))
-        assertTrue(capturedPrompt.contains("旅行"))
-        assertTrue(capturedPrompt.contains("tags"))
+        useCase(chat)("交易金额\n¥38.50\n收款方\n滴滴出行", isOcrInput = true)
+        assertTrue(capturedPrompt.contains("OCR 文字"))
+    }
+
+    @Test
+    fun `isOcrInput=false does not append ocr context to system prompt`() = runTest {
+        var capturedPrompt = ""
+        val chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult {
+                capturedPrompt = systemPrompt
+                return AiChatResult.Content("""{"recordable": false, "message": "ok"}""")
+            }
+        }
+        useCase(chat)("昨天打车花了30块")
+        assertFalse(capturedPrompt.contains("OCR 文字"))
     }
 }

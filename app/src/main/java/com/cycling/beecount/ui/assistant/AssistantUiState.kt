@@ -1,5 +1,6 @@
 package com.cycling.beecount.ui.assistant
 
+import android.net.Uri
 import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
@@ -70,4 +71,7 @@ sealed interface AssistantEvent {
 
     /** 清除瞬时错误提示 */
     data object DismissError : AssistantEvent
+
+    /** 从相册选图触发 OCR 记账 */
+    data class OcrImageSelected(val uri: Uri) : AssistantEvent
 }

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">BeeCount</string>
+    <string name="cd_ocr_pick_image">从相册选图记账</string>
 </resources>

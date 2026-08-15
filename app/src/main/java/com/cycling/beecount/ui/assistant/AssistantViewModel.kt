@@ -1,5 +1,6 @@
 package com.cycling.beecount.ui.assistant
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
@@ -8,6 +9,7 @@ import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
 import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
 import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ObserveTotalsOnUseCase
+import com.cycling.beecount.domain.usecase.OcrEntryUseCase
 import com.cycling.beecount.domain.usecase.ParseEntryUseCase
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +32,7 @@ class AssistantViewModel @Inject constructor(
     private val parseEntryUseCase: ParseEntryUseCase,
     private val confirmEntryUseCase: ConfirmEntryUseCase,
     private val undoEntryUseCase: UndoEntryUseCase,
+    private val ocrEntryUseCase: OcrEntryUseCase,
     observeEntriesOn: ObserveEntriesOnUseCase,
     observeTotalsOn: ObserveTotalsOnUseCase,
     observeCategories: ObserveCategoriesUseCase,
@@ -87,6 +90,7 @@ class AssistantViewModel @Inject constructor(
 
             is AssistantEvent.Undo -> undo(event.entryId)
             AssistantEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
+            is AssistantEvent.OcrImageSelected -> processOcrImage(event.uri)
         }
     }
 
@@ -100,42 +104,7 @@ class AssistantViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            when (val outcome = parseEntryUseCase(trimmed)) {
-                is ParseEntryUseCase.Outcome.Success -> {
-                    val result = outcome.result
-                    _uiState.update { s ->
-                        if (result.recordable) {
-                            s.copy(pendingResult = result, pendingOriginalText = trimmed)
-                        } else {
-                            s.copy(
-                                messages = s.messages + AssistantMessage.Assistant(
-                                    newMessageId(),
-                                    result.message ?: "我没听懂这笔账，换种说法试试？"
-                                )
-                            )
-                        }
-                    }
-                }
-
-                ParseEntryUseCase.Outcome.KeyMissing -> {
-                    _uiState.update { s ->
-                        s.copy(
-                            messages = s.messages + AssistantMessage.Assistant(
-                                newMessageId(),
-                                "请先到底部「设置」里填写你的 DeepSeek API Key"
-                            )
-                        )
-                    }
-                }
-
-                is ParseEntryUseCase.Outcome.Error -> {
-                    _uiState.update { s ->
-                        s.copy(
-                            messages = s.messages + AssistantMessage.Assistant(newMessageId(), outcome.message)
-                        )
-                    }
-                }
-            }
+            handleParseOutcome(parseEntryUseCase(trimmed), originalText = trimmed)
             _uiState.update { it.copy(isParsing = false) }
         }
     }
@@ -181,6 +150,86 @@ class AssistantViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(transientError = "撤销失败，请重试") }
+            }
+        }
+    }
+
+    private fun processOcrImage(uri: Uri) {
+        if (_uiState.value.isParsing) return
+        _uiState.update { it.copy(isParsing = true) }
+        viewModelScope.launch {
+            when (val outcome = ocrEntryUseCase(uri)) {
+                is OcrEntryUseCase.Outcome.RecognitionFailed -> {
+                    _uiState.update { s ->
+                        s.copy(
+                            messages = s.messages + AssistantMessage.Assistant(
+                                newMessageId(),
+                                "未能识别图片文字，请换张截图或手动输入"
+                            )
+                        )
+                    }
+                }
+
+                is OcrEntryUseCase.Outcome.ImageError -> {
+                    _uiState.update { s ->
+                        s.copy(
+                            messages = s.messages + AssistantMessage.Assistant(
+                                newMessageId(),
+                                "无法读取图片，请重试"
+                            )
+                        )
+                    }
+                }
+
+                is OcrEntryUseCase.Outcome.Parsed ->
+                    handleParseOutcome(outcome.parseOutcome, originalText = "")
+            }
+            _uiState.update { it.copy(isParsing = false) }
+        }
+    }
+
+    /** 处理 [ParseEntryUseCase.Outcome]，供文字输入和 OCR 两条路径共用。*/
+    private fun handleParseOutcome(
+        outcome: ParseEntryUseCase.Outcome,
+        originalText: String,
+        nonRecordableDefault: String = "我没听懂这笔账，换种说法试试？",
+    ) {
+        when (outcome) {
+            is ParseEntryUseCase.Outcome.Success -> {
+                val result = outcome.result
+                _uiState.update { s ->
+                    if (result.recordable) {
+                        s.copy(pendingResult = result, pendingOriginalText = originalText)
+                    } else {
+                        s.copy(
+                            messages = s.messages + AssistantMessage.Assistant(
+                                newMessageId(),
+                                result.message ?: nonRecordableDefault
+                            )
+                        )
+                    }
+                }
+            }
+
+            ParseEntryUseCase.Outcome.KeyMissing -> {
+                _uiState.update { s ->
+                    s.copy(
+                        messages = s.messages + AssistantMessage.Assistant(
+                            newMessageId(),
+                            "请先到底部「设置」里填写你的 DeepSeek API Key"
+                        )
+                    )
+                }
+            }
+
+            is ParseEntryUseCase.Outcome.Error -> {
+                _uiState.update { s ->
+                    s.copy(
+                        messages = s.messages + AssistantMessage.Assistant(
+                            newMessageId(), outcome.message
+                        )
+                    )
+                }
             }
         }
     }
