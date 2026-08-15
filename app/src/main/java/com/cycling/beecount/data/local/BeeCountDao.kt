@@ -43,6 +43,9 @@ interface EntryDao {
     suspend fun insert(entry: EntryEntity): Long
 
     @Insert
+    suspend fun insertAll(entries: List<EntryEntity>)
+
+    @Insert
     suspend fun insertEntryTag(entryTag: EntryTagEntity)
 
     /** 入库账目并写入标签关联，同事务（ADR 0007） */
@@ -57,6 +60,13 @@ interface EntryDao {
 
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** 原子替换所有账目，供演示数据等完整数据集使用。 */
+    @Transaction
+    suspend fun replaceAll(entries: List<EntryEntity>) {
+        clearAll()
+        insertAll(entries)
+    }
 
     /** 清空全部账目（ADR 0008：只清账目，保留类别/标签；entry_tags 随外键级联清除） */
     @Query("DELETE FROM entries")

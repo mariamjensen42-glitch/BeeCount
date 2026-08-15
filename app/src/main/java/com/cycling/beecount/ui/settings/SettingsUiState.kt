@@ -12,6 +12,7 @@ data class SettingsUiState(
     val apiKeyMasked: String = "",
     val categories: List<Category> = emptyList(),
     val tags: List<Tag> = emptyList(),
+    val transientMessage: String? = null,
     val transientError: String? = null,
 )
 
@@ -37,6 +38,11 @@ sealed interface SettingsEvent {
 
     /** 清空全部账目（只清账目，类别/标签保留） */
     data object ClearAllEntries : SettingsEvent
+
+    /** 清空现有账目后写入当前年度演示样本 */
+    data object FillDemoData : SettingsEvent
+
+    data object DismissMessage : SettingsEvent
 
     data object DismissError : SettingsEvent
 }

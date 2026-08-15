@@ -9,10 +9,13 @@ import kotlinx.coroutines.flow.flowOf
 
 /** 测试用 EntryRepository：返回固定账目列表，并记录 observeBetween 的查询区间 */
 class FakeEntryRepository(
-    private val entries: List<Entry>,
+    entries: List<Entry>,
 ) : EntryRepository {
+    private val entries = entries.toMutableList()
     var observedStart: LocalDate? = null
     var observedEnd: LocalDate? = null
+    var replaceAllCalls = 0
+    val storedEntries: List<Entry> get() = entries
 
     override fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<Entry>> {
         observedStart = start
@@ -23,8 +26,27 @@ class FakeEntryRepository(
     override fun observeEntriesOn(date: LocalDate): Flow<List<Entry>> = flowOf(entries)
     override fun observeTotalsOn(date: LocalDate): Flow<TodayTotals> = flowOf(TodayTotals())
     override fun observeAllWithTags(): Flow<List<Entry>> = flowOf(entries)
-    override suspend fun add(entry: Entry): Long = entry.id
-    override suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long = entry.id
-    override suspend fun delete(id: Long) {}
-    override suspend fun clearAll() {}
+    override suspend fun add(entry: Entry): Long {
+        entries += entry
+        return entry.id
+    }
+
+    override suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long {
+        entries += entry
+        return entry.id
+    }
+
+    override suspend fun delete(id: Long) {
+        entries.removeAll { it.id == id }
+    }
+
+    override suspend fun replaceAll(entries: List<Entry>) {
+        replaceAllCalls++
+        this.entries.clear()
+        this.entries += entries
+    }
+
+    override suspend fun clearAll() {
+        entries.clear()
+    }
 }

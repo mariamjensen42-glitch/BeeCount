@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.usecase.ClearAllEntriesUseCase
 import com.cycling.beecount.domain.usecase.ExportEntriesCsvUseCase
+import com.cycling.beecount.domain.usecase.FillDemoDataUseCase
 import com.cycling.beecount.domain.usecase.ManageCategoryUseCase
 import com.cycling.beecount.domain.usecase.ManageTagUseCase
 import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
@@ -27,6 +28,7 @@ class SettingsViewModel @Inject constructor(
     private val manageCategoryUseCase: ManageCategoryUseCase,
     private val manageTagUseCase: ManageTagUseCase,
     private val clearAllEntriesUseCase: ClearAllEntriesUseCase,
+    private val fillDemoDataUseCase: FillDemoDataUseCase,
     private val exportEntriesCsvUseCase: ExportEntriesCsvUseCase,
     observeCategories: ObserveCategoriesUseCase,
     observeTags: ObserveTagsUseCase,
@@ -85,6 +87,10 @@ class SettingsViewModel @Inject constructor(
                 launchManage { manageTagUseCase.delete(event.id) }
 
             SettingsEvent.ClearAllEntries -> launchManage { clearAllEntriesUseCase() }
+            SettingsEvent.FillDemoData -> launchManage(
+                successMessage = "已填充近五年 9,000 笔演示数据",
+            ) { fillDemoDataUseCase() }
+            SettingsEvent.DismissMessage -> _uiState.update { it.copy(transientMessage = null) }
             SettingsEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
         }
     }
@@ -99,10 +105,16 @@ class SettingsViewModel @Inject constructor(
         null
     }
 
-    private fun launchManage(block: suspend () -> Unit) {
+    private fun launchManage(
+        successMessage: String? = null,
+        block: suspend () -> Unit,
+    ) {
         viewModelScope.launch {
             try {
                 block()
+                if (successMessage != null) {
+                    _uiState.update { it.copy(transientMessage = successMessage) }
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

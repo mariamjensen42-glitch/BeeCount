@@ -28,6 +28,9 @@ interface EntryRepository {
 
     suspend fun delete(id: Long)
 
+    /** 原子替换全部账目，类别和标签等元数据保留。 */
+    suspend fun replaceAll(entries: List<Entry>)
+
     /** 清空全部账目（ADR 0008：只清账目，类别/标签保留） */
     suspend fun clearAll()
 }

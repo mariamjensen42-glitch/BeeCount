@@ -49,6 +49,10 @@ class RoomEntryRepository @Inject constructor(
         entryDao.deleteById(id)
     }
 
+    override suspend fun replaceAll(entries: List<Entry>) {
+        entryDao.replaceAll(entries.map { it.toEntity() })
+    }
+
     override suspend fun clearAll() {
         entryDao.clearAll()
     }

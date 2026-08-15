@@ -26,6 +26,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -75,10 +77,23 @@ fun SettingsScreen(
     var showCategoryDialog by remember { mutableStateOf(false) }
     var showTagDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showDemoConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    androidx.compose.runtime.LaunchedEffect(uiState.transientMessage, uiState.transientError) {
+        val message = uiState.transientMessage ?: uiState.transientError
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            onEvent(
+                if (uiState.transientMessage != null) SettingsEvent.DismissMessage else SettingsEvent.DismissError,
+            )
+        }
+    }
 
     Scaffold(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text("设置") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -114,6 +129,11 @@ fun SettingsScreen(
                     if (csv != null) shareCsv(context, csv)
                 }
             })
+            SettingsRow(
+                title = "填充演示数据",
+                subtitle = "清空账目后写入近五年 9,000 笔样本",
+                onClick = { showDemoConfirm = true },
+            )
             SettingsRow(
                 title = "清空全部账目",
                 subtitle = "只清账目，类别与标签保留",
@@ -154,6 +174,24 @@ fun SettingsScreen(
             onRename = { id, name -> onEvent(SettingsEvent.RenameTag(id, name)) },
             onUpdateColor = { id, color -> onEvent(SettingsEvent.UpdateTagColor(id, color)) },
             onDelete = { id -> onEvent(SettingsEvent.DeleteTag(id)) },
+        )
+    }
+    if (showDemoConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDemoConfirm = false },
+            title = { Text("填充演示数据？") },
+            text = { Text("将清空现有全部账目，并写入近五年覆盖多类收支场景的 9,000 笔样本。类别与标签会保留。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onEvent(SettingsEvent.FillDemoData)
+                        showDemoConfirm = false
+                    },
+                ) { Text("填充") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDemoConfirm = false }) { Text("取消") }
+            },
         )
     }
     if (showClearConfirm) {
