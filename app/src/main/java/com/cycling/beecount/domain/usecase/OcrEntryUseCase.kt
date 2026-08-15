@@ -25,8 +25,11 @@ class OcrEntryUseCase @Inject constructor(
 ) {
 
     sealed interface Outcome {
-        /** OCR + 解析均成功 */
-        data class Parsed(val parseOutcome: ParseEntryUseCase.Outcome) : Outcome
+        /** OCR + 解析均成功，[rawText] 为识别原文供确认卡片展示 */
+        data class Parsed(
+            val parseOutcome: ParseEntryUseCase.Outcome,
+            val rawText: String,
+        ) : Outcome
 
         /** ML Kit 未能从图片中识别出足够文字 */
         data object RecognitionFailed : Outcome
@@ -52,7 +55,7 @@ class OcrEntryUseCase @Inject constructor(
             return Outcome.RecognitionFailed
         }
 
-        return Outcome.Parsed(parseEntryUseCase(rawText, isOcrInput = true))
+        return Outcome.Parsed(parseEntryUseCase(rawText, isOcrInput = true), rawText)
     }
 
     private suspend fun recognizeText(image: InputImage): String =

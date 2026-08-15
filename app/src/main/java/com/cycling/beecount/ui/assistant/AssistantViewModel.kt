@@ -184,7 +184,7 @@ class AssistantViewModel @Inject constructor(
                 }
 
                 is OcrEntryUseCase.Outcome.Parsed ->
-                    handleParseOutcome(outcome.parseOutcome, originalText = "")
+                    handleParseOutcome(outcome.parseOutcome, originalText = outcome.rawText)
             }
             _uiState.update { it.copy(isParsing = false) }
         }
