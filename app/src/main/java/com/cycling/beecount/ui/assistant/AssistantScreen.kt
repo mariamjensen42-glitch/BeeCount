@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,6 +63,7 @@ import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.IncomeGreen
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
 import java.time.format.DateTimeFormatter
 
@@ -88,10 +90,25 @@ fun AssistantScreen(
     onEvent: (AssistantEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val hasCameraHardware = remember {
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA_ANY)
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) onEvent(AssistantEvent.OcrImageSelected(uri))
+    }
+
+    if (uiState.showCameraSheet) {
+        CameraCaptureSheet(
+            onImageCaptured = { uri ->
+                onEvent(AssistantEvent.DismissCamera)
+                onEvent(AssistantEvent.OcrImageSelected(uri))
+            },
+            onDismiss = { onEvent(AssistantEvent.DismissCamera) },
+        )
     }
 
     Scaffold(
@@ -173,6 +190,9 @@ fun AssistantScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
+                onOpenCamera = if (hasCameraHardware) {
+                    { onEvent(AssistantEvent.ShowCamera) }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 64.dp),
@@ -415,16 +435,27 @@ private fun InputBar(
     enabled: Boolean,
     onSend: (String) -> Unit,
     onPickImage: () -> Unit,
+    onOpenCamera: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (onOpenCamera != null) {
+            IconButton(
+                onClick = onOpenCamera,
+                enabled = enabled,
+                colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
+            ) {
+                Icon(
+                    imageVector = Heroicons.Outline.Camera,
+                    contentDescription = stringResource(R.string.cd_camera_capture),
+                )
+            }
+        }
         IconButton(
             onClick = onPickImage,
             enabled = enabled,
-            colors = IconButtonDefaults.iconButtonColors(
-                contentColor = HoneyAmber,
-            ),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
         ) {
             Icon(
                 imageVector = Heroicons.Outline.Photo,

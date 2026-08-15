@@ -91,6 +91,8 @@ class AssistantViewModel @Inject constructor(
             is AssistantEvent.Undo -> undo(event.entryId)
             AssistantEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
             is AssistantEvent.OcrImageSelected -> processOcrImage(event.uri)
+            AssistantEvent.ShowCamera -> _uiState.update { it.copy(showCameraSheet = true) }
+            AssistantEvent.DismissCamera -> _uiState.update { it.copy(showCameraSheet = false) }
         }
     }
 

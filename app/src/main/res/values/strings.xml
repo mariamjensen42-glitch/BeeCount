@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">BeeCount</string>
     <string name="cd_ocr_pick_image">从相册选图记账</string>
+    <string name="cd_camera_capture">拍照记账</string>
+    <string name="camera_permission_denied">需要相机权限才能拍照记账，请在系统设置中开启</string>
+    <string name="camera_capture_button">拍 摄</string>
 </resources>

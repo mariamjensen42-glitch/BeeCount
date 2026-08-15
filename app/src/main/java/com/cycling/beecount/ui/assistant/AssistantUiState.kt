@@ -25,6 +25,7 @@ data class AssistantUiState(
     val today: LocalDate = LocalDate.now(),
     val isParsing: Boolean = false,
     val transientError: String? = null,
+    val showCameraSheet: Boolean = false,
 )
 
 /**
@@ -74,4 +75,10 @@ sealed interface AssistantEvent {
 
     /** 从相册选图触发 OCR 记账 */
     data class OcrImageSelected(val uri: Uri) : AssistantEvent
+
+    /** 打开相机拍照 Sheet */
+    data object ShowCamera : AssistantEvent
+
+    /** 关闭相机拍照 Sheet */
+    data object DismissCamera : AssistantEvent
 }
