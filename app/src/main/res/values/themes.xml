@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.BeeCount" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 暗色独占：深色启动主题 + 暖黑窗口背景，避免冷启动闪白（见 docs/adr/0003） -->
+    <style name="Theme.BeeCount" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bee_window_background</item>
+    </style>
 </resources>

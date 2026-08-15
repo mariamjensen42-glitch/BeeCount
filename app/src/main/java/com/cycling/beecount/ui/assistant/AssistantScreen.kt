@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.ui.theme.ExpenseRed
+import com.cycling.beecount.ui.theme.IncomeGreen
 
 @Composable
 fun AssistantRoute(
@@ -196,11 +198,12 @@ private fun TodayTotalsSection(uiState: AssistantUiState, modifier: Modifier = M
         Text(
             text = "今日支出 ¥${formatMoney(uiState.todayTotals.expense)}",
             style = MaterialTheme.typography.titleMedium,
+            color = ExpenseRed,
         )
         Text(
             text = "今日收入 ¥${formatMoney(uiState.todayTotals.income)}",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = IncomeGreen,
         )
     }
 }
@@ -226,11 +229,7 @@ private fun TodayEntryRow(entry: com.cycling.beecount.domain.model.Entry) {
             Text(
                 text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (entry.type == EntryType.EXPENSE) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
+                color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
             )
         }
     }
