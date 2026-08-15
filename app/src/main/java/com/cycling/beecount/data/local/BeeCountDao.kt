@@ -30,8 +30,14 @@ interface EntryDao {
     fun observeTotalsOn(date: LocalDate): Flow<TotalsRow>
 
     /** 账本页：全部账目（时间倒序）+ 各自的标签 */
+    @Transaction
     @Query("SELECT * FROM entries ORDER BY date DESC, createdAt DESC")
     fun observeAllWithTags(): Flow<List<EntryWithTags>>
+
+    /** 图表页：观察 [start, end] 区间内的账目（时间正序，带各自标签，ADR 0009） */
+    @Transaction
+    @Query("SELECT * FROM entries WHERE date BETWEEN :start AND :end ORDER BY date ASC, createdAt ASC")
+    fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<EntryWithTags>>
 
     @Insert
     suspend fun insert(entry: EntryEntity): Long

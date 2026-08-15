@@ -36,6 +36,9 @@ class RoomEntryRepository @Inject constructor(
     override fun observeAllWithTags(): Flow<List<Entry>> =
         entryDao.observeAllWithTags().map { list -> list.map { it.toDomain() } }
 
+    override fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<Entry>> =
+        entryDao.observeBetween(start, end).map { list -> list.map { it.toDomain() } }
+
     override suspend fun add(entry: Entry): Long =
         entryDao.insert(entry.toEntity())
 

@@ -28,6 +28,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.cycling.beecount.ui.analytics.AnalyticsRoute
 import com.cycling.beecount.ui.assistant.AssistantRoute
 import com.cycling.beecount.ui.ledger.LedgerRoute
 import com.cycling.beecount.ui.settings.SettingsRoute
@@ -38,13 +39,15 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.Solid
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.BookOpen
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CalendarDays
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChartBar
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Cog6Tooth
 import com.woowla.compose.icon.collections.heroicons.heroicons.solid.BookOpen
 import com.woowla.compose.icon.collections.heroicons.heroicons.solid.CalendarDays
+import com.woowla.compose.icon.collections.heroicons.heroicons.solid.ChartBar
 import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
 
 /**
- * 应用根导航：悬浮胶囊底部栏，「今日 / 账本」两个 tab（ADR 0006）。
+ * 应用根导航：悬浮胶囊底部栏，「今日 / 账本 / 设置 / 图表」四个 tab（ADR 0009）。
  * 胶囊以覆盖层悬浮在内容之上（非 M3 NavigationBar），内容可滚动穿过胶囊下方。
  * 选中项蜂蜜金填充，未选中 outline 图标；saveState/restoreState 保留各 tab 状态。
  */
@@ -63,6 +66,7 @@ fun BeeCountApp() {
             composable("assistant") { AssistantRoute() }
             composable("ledger") { LedgerRoute() }
             composable("settings") { SettingsRoute() }
+            composable("analytics") { AnalyticsRoute() }
         }
         FloatingPillBar(
             currentRoute = currentRoute,
@@ -130,6 +134,13 @@ private fun FloatingPillBar(
                 outlineIcon = Heroicons.Outline.Cog6Tooth,
                 solidIcon = Heroicons.Solid.Cog6Tooth,
                 onClick = { onNavigate("settings") },
+            )
+            PillTab(
+                label = "图表",
+                selected = currentRoute == "analytics",
+                outlineIcon = Heroicons.Outline.ChartBar,
+                solidIcon = Heroicons.Solid.ChartBar,
+                onClick = { onNavigate("analytics") },
             )
         }
     }

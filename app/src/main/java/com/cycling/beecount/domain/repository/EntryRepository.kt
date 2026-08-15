@@ -18,6 +18,9 @@ interface EntryRepository {
     /** 账本页：观察全部账目（时间倒序，带各自标签） */
     fun observeAllWithTags(): Flow<List<Entry>>
 
+    /** 图表页：观察 [start, end] 区间内的账目（时间正序，带各自标签，ADR 0009） */
+    fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<Entry>>
+
     suspend fun add(entry: Entry): Long
 
     /** 入库账目并写入标签关联，同事务 */
