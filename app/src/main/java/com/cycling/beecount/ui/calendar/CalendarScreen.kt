@@ -32,7 +32,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +83,7 @@ fun CalendarScreen(
     onOpenAnalytics: (YearMonth) -> Unit,
     onAddEntry: (LocalDate) -> Unit,
 ) {
+    var showMonthPicker by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(uiState.pendingUndo) {
         if (uiState.pendingUndo != null) {
@@ -111,10 +114,20 @@ fun CalendarScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp, 16.dp, 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item { MonthSelector(uiState.selectedMonth, onEvent) }
+            item { MonthSelector(uiState.selectedMonth, onEvent, onOpenPicker = { showMonthPicker = true }) }
             item { MonthSummary(calendarMonth) }
             item { MonthGrid(uiState, calendarMonth, onEvent) }
         }
+    }
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            selectedMonth = uiState.selectedMonth,
+            onDismiss = { showMonthPicker = false },
+            onSelect = {
+                onEvent(CalendarEvent.SelectMonth(it))
+                showMonthPicker = false
+            },
+        )
     }
     val selectedDay = calendarMonth?.days?.firstOrNull { it.date == uiState.selectedDate }
     if (uiState.showDaySheet && uiState.selectedDate != null) {
@@ -130,11 +143,13 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun MonthSelector(month: YearMonth, onEvent: (CalendarEvent) -> Unit) {
+private fun MonthSelector(month: YearMonth, onEvent: (CalendarEvent) -> Unit, onOpenPicker: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onEvent(CalendarEvent.ShiftMonth(-1)) }) { Icon(Heroicons.Outline.ChevronLeft, "上个月") }
-            Text("${month.year}年${month.monthValue}月", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(132.dp), textAlign = TextAlign.Center)
+            TextButton(onClick = onOpenPicker) {
+                Text("${month.year}年${month.monthValue}月", style = MaterialTheme.typography.titleMedium)
+            }
             IconButton(onClick = { onEvent(CalendarEvent.ShiftMonth(1)) }) { Icon(Heroicons.Outline.ChevronRight, "下个月") }
         }
         if (month != YearMonth.now()) TextButton(onClick = { onEvent(CalendarEvent.GoToCurrentMonth) }) { Text("回本月") }

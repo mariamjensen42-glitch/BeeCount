@@ -16,6 +16,7 @@ sealed interface CalendarEvent {
     data class ShiftMonth(val delta: Int) : CalendarEvent
     data object GoToCurrentMonth : CalendarEvent
     data class SelectDate(val date: LocalDate) : CalendarEvent
+    data class SelectMonth(val month: YearMonth) : CalendarEvent
     data object CloseDaySheet : CalendarEvent
     data class DeleteEntry(val entryId: Long) : CalendarEvent
     data object UndoDelete : CalendarEvent

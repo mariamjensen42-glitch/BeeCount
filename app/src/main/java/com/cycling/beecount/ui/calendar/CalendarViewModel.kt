@@ -57,6 +57,9 @@ class CalendarViewModel @Inject constructor(
                 it.copy(selectedMonth = YearMonth.now(), selectedDate = null, showDaySheet = false)
             }
             is CalendarEvent.SelectDate -> _uiState.update { it.copy(selectedDate = event.date, showDaySheet = true) }
+            is CalendarEvent.SelectMonth -> _uiState.update {
+                it.copy(selectedMonth = event.month, selectedDate = null, showDaySheet = false)
+            }
             CalendarEvent.CloseDaySheet -> _uiState.update { it.copy(showDaySheet = false) }
             is CalendarEvent.DeleteEntry -> if (_uiState.value.pendingUndo == null) viewModelScope.launch {
                 deleteEntryWithUndo(event.entryId)?.let { snapshot ->
