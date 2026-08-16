@@ -1,5 +1,7 @@
 # NLS 候选扫描：manifest permission 必须是 `BIND_NOTIFICATION_LISTENER_SERVICE`
 
+> **⚠️ 已随功能下线（2026-08-16，v0.0.5）**：本 ADR 记录的问题修复随 v0.0.4 发布，但自动记账功能已在 v0.0.5 完全移除（见 ADR 0014 弃用说明），NLS 服务节点与权限声明已从 manifest 删除。本文保留作为「系统列表不显示候选」类问题的排查参考。
+
 ADR 0014 实现 NLS 自动记账后，MIUI V140「通知使用权」列表始终不显示 BeeCount，连续 3 个 commit（f9b7920、daeb90a、f1b6614）都没能解决，根因直到本次烤问通过对比 `Lambada10/SongSync`（同场景、同问题域、可正常显示在列表里）的 manifest 才暴露：`<service>` 节点声明的 permission 写成了 `android.permission.BIND_NOTIFICATION_LISTENER`（**无 `_SERVICE` 后缀**），正确值是 `android.permission.BIND_NOTIFICATION_LISTENER_SERVICE`。这是一个**从未生效的 NLS 候选**：系统的 `Settings$NotificationAccessSettings` 收集候选服务时按 `BIND_NOTIFICATION_LISTENER_SERVICE` 权限名过滤，BeeCount 因权限名错误从 v0.0.3 之前的所有安装包（含 debug v0.0.2 与 release v0.0.3）开始就**根本不在候选集合里**。
 
 **「`cmd package query-services -a android.service.notification.NotificationListenerService` 能解析到本服务」不能证明「系统设置页认为本服务是 NLS 候选」**：前者按 intent-filter 的 action 解析，**不**校验 permission；后者按 permission 名收集。**两个层次的"能解析"和"是候选"完全是两件事**——本次烤问早期也用前者"能解析"的正面结果给自己打气，绕了很久才靠对比参考实现打破这个误判。

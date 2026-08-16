@@ -1,16 +1,9 @@
 package com.cycling.beecount.ui.settings
 
-import android.Manifest
-import android.content.ComponentName
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.Settings
-import androidx.core.content.ContextCompat
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.repository.AiKeyRepository
-import com.cycling.beecount.domain.repository.AutoEntrySettingsRepository
 import com.cycling.beecount.domain.usecase.ClearAllEntriesUseCase
 import com.cycling.beecount.domain.usecase.ExportEntriesCsvUseCase
 import com.cycling.beecount.domain.usecase.FillDemoDataUseCase
@@ -21,9 +14,7 @@ import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
 import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ParseWeChatBillUseCase
 import com.cycling.beecount.domain.usecase.UndoWeChatImportUseCase
-import com.cycling.beecount.notification.PaymentNotificationListener
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,8 +41,6 @@ class SettingsViewModel @Inject constructor(
     private val parseWeChatBillUseCase: ParseWeChatBillUseCase,
     private val importWeChatBillUseCase: ImportWeChatBillUseCase,
     private val undoWeChatImportUseCase: UndoWeChatImportUseCase,
-    private val autoEntrySettingsRepository: AutoEntrySettingsRepository,
-    @ApplicationContext private val appContext: Context,
     observeCategories: ObserveCategoriesUseCase,
     observeTags: ObserveTagsUseCase,
 ) : ViewModel() {
@@ -75,12 +64,6 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(tags = tags) }
             }
         }
-        viewModelScope.launch {
-            autoEntrySettingsRepository.observeEnabled().collect { enabled ->
-                _uiState.update { it.copy(autoEntryEnabled = enabled) }
-            }
-        }
-        refreshAutoEntryPermissions()
     }
 
     fun onEvent(event: SettingsEvent) {
@@ -125,69 +108,9 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(weChatImport = WeChatImportUiState.Idle) }
             SettingsEvent.UndoWeChatImport -> undoWeChatImport()
 
-            is SettingsEvent.ToggleAutoEntry -> toggleAutoEntry(event.enable)
-            SettingsEvent.RefreshAutoEntryPermissions -> refreshAutoEntryPermissions()
-            SettingsEvent.DismissAutoEntrySetup ->
-                _uiState.update { it.copy(autoEntrySetupPending = false) }
-
             SettingsEvent.DismissMessage -> _uiState.update { it.copy(transientMessage = null) }
             SettingsEvent.DismissError -> _uiState.update { it.copy(transientError = null) }
         }
-    }
-
-    /**
-     * 自动记账总开关（ADR 0014）：关闭直接落库；开启需前置检查——
-     * API Key 未配置先引导配置；NLS/通知权限未授权进入三步引导（授权齐后自动完成开启）。
-     */
-    private fun toggleAutoEntry(enable: Boolean) {
-        if (!enable) {
-            launchManage { autoEntrySettingsRepository.setEnabled(false) }
-            return
-        }
-        if (_uiState.value.apiKeyMasked.isEmpty()) {
-            _uiState.update { it.copy(transientError = "自动记账需要先配置 DeepSeek API Key") }
-            return
-        }
-        val nlsGranted = _uiState.value.notificationListeningGranted
-        val postGranted = _uiState.value.postNotificationsGranted
-        if (!nlsGranted || !postGranted) {
-            _uiState.update { it.copy(autoEntrySetupPending = true) }
-            return
-        }
-        launchManage { autoEntrySettingsRepository.setEnabled(true) }
-    }
-
-    /** 从系统设置返回 / 权限请求回调后刷新授权状态；三步引导进行中且授权齐 → 自动完成开启 */
-    private fun refreshAutoEntryPermissions() {
-        val nlsGranted = isNotificationListenerGranted()
-        val postGranted = Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        _uiState.update {
-            it.copy(
-                notificationListeningGranted = nlsGranted,
-                postNotificationsGranted = postGranted,
-            )
-        }
-        if (_uiState.value.autoEntrySetupPending && nlsGranted && postGranted) {
-            completeAutoEntrySetup()
-        }
-    }
-
-    private fun completeAutoEntrySetup() {
-        _uiState.update { it.copy(autoEntrySetupPending = false) }
-        launchManage { autoEntrySettingsRepository.setEnabled(true) }
-    }
-
-    /** 通知监听授权状态：系统"通知使用权"列表（enabled_notification_listeners）含本服务即已授权 */
-    private fun isNotificationListenerGranted(): Boolean {
-        val target = ComponentName(appContext, PaymentNotificationListener::class.java)
-        // 常量 ENABLED_NOTIFICATION_LISTENERS 在部分 SDK 源码过滤下不可见，用字面量（API 18+ 稳定）
-        val flat = Settings.Secure.getString(
-            appContext.contentResolver,
-            "enabled_notification_listeners",
-        ) ?: return false
-        return flat.split(":").any { ComponentName.unflattenFromString(it) == target }
     }
 
     /** 解析选中的微信账单 → 去重预览，进入确认层；解析失败直接报错 */

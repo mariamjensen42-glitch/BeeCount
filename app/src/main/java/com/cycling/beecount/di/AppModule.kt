@@ -9,14 +9,11 @@ import com.cycling.beecount.BeeCountApplication
 import com.cycling.beecount.data.local.BeeCountDatabase
 import com.cycling.beecount.data.local.CategoryDao
 import com.cycling.beecount.data.local.EntryDao
-import com.cycling.beecount.data.local.PendingDraftDao
-import com.cycling.beecount.data.local.ProcessedNotificationDao
 import com.cycling.beecount.data.local.TagDao
 import com.cycling.beecount.data.remote.DeepSeekApi
 import com.cycling.beecount.data.remote.DeepSeekAiChatDataSource
 import com.cycling.beecount.data.datasource.AiChatDataSource
 import com.cycling.beecount.data.repository.WidgetRefresher
-import com.cycling.beecount.domain.usecase.NotificationGate
 import com.cycling.beecount.widget.OverviewWidget
 import androidx.glance.appwidget.updateAll
 import dagger.Module
@@ -52,13 +49,6 @@ object AppModule {
 
     @Provides
     fun provideTagDao(db: BeeCountDatabase): TagDao = db.tagDao()
-
-    @Provides
-    fun providePendingDraftDao(db: BeeCountDatabase): PendingDraftDao = db.pendingDraftDao()
-
-    @Provides
-    fun provideProcessedNotificationDao(db: BeeCountDatabase): ProcessedNotificationDao =
-        db.processedNotificationDao()
 
     /** 桌面小组件刷新器：账目写操作后触发全部 widget 实例更新（ADR 0013） */
     @Provides
@@ -104,8 +94,4 @@ object AppModule {
 
     @Provides
     fun provideCurrentDate(): () -> java.time.LocalDate = { java.time.LocalDate.now() }
-
-    /** 通知闸门（ADR 0014）：白名单经构造参数可配（测试用），生产用默认（微信/支付宝） */
-    @Provides
-    fun provideNotificationGate(): NotificationGate = NotificationGate()
 }

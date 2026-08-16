@@ -74,19 +74,12 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AssistantRoute(
     prefillDate: LocalDate? = null,
-    prefillText: String? = null,
-    openDraftId: Long? = null,
-    onPrefillConsumed: () -> Unit = {},
     onEntrySaved: (LocalDate) -> Unit = {},
     viewModel: AssistantViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(prefillDate) {
         viewModel.onEvent(AssistantEvent.SetTargetDate(prefillDate))
-    }
-    // 确认通知深链（ADR 0014）：定位到通知对应的那张待确认草稿卡片
-    LaunchedEffect(openDraftId) {
-        openDraftId?.let { viewModel.onEvent(AssistantEvent.PreferDraft(it)) }
     }
     LaunchedEffect(uiState.savedEntryDate) {
         uiState.savedEntryDate?.let {
@@ -97,8 +90,6 @@ fun AssistantRoute(
     AssistantScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
-        prefillText = prefillText,
-        onPrefillConsumed = onPrefillConsumed,
     )
 }
 
@@ -112,8 +103,6 @@ fun AssistantRoute(
 fun AssistantScreen(
     uiState: AssistantUiState,
     onEvent: (AssistantEvent) -> Unit,
-    prefillText: String? = null,
-    onPrefillConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -239,8 +228,6 @@ fun AssistantScreen(
             InputBar(
                 enabled = !uiState.isParsing,
                 targetDate = uiState.targetDate,
-                prefillText = prefillText,
-                onPrefillConsumed = onPrefillConsumed,
                 onSend = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -497,21 +484,9 @@ private fun InputBar(
     enabled: Boolean,
     targetDate: LocalDate?,
     onSend: (String) -> Unit,
-    prefillText: String? = null,
-    onPrefillConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
-    // 失败重试深链（ADR 0014）：预填支付通知原文且只生效一次；
-    // 预填后回调消费深链，避免每次进入助手页都重新预填
-    var prefilled by remember { mutableStateOf(false) }
-    LaunchedEffect(prefillText) {
-        if (prefillText != null && !prefilled) {
-            text = prefillText
-            prefilled = true
-            onPrefillConsumed()
-        }
-    }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = text,

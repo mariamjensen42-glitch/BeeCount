@@ -93,7 +93,4 @@ sealed interface AssistantEvent {
 
     /** 关闭相机拍照 Sheet */
     data object DismissCamera : AssistantEvent
-
-    /** 深链定位：优先展示指定待确认草稿的确认卡片（ADR 0014，只生效一次） */
-    data class PreferDraft(val draftId: Long) : AssistantEvent
 }

@@ -22,12 +22,6 @@ data class SettingsUiState(
     val transientError: String? = null,
     val weChatImport: WeChatImportUiState = WeChatImportUiState.Idle,
     val pendingWeChatUndo: PendingWeChatUndo? = null,
-    /** 自动记账（ADR 0014）：总开关状态与两项权限授权状态 */
-    val autoEntryEnabled: Boolean = false,
-    val notificationListeningGranted: Boolean = false,
-    val postNotificationsGranted: Boolean = false,
-    /** 拨开关但权限未齐时进入三步引导；授权齐后自动完成开启 */
-    val autoEntrySetupPending: Boolean = false,
 )
 
 /**
@@ -89,15 +83,6 @@ sealed interface SettingsEvent {
 
     /** 撤销窗口内点"撤销"，删除本次导入的全部账目 */
     data object UndoWeChatImport : SettingsEvent
-
-    /** 自动记账总开关（ADR 0014）：开需前置检查（Key + 两项权限），缺则进三步引导 */
-    data class ToggleAutoEntry(val enable: Boolean) : SettingsEvent
-
-    /** 从系统设置返回/权限请求回调后刷新授权状态；授权齐时自动完成开启 */
-    data object RefreshAutoEntryPermissions : SettingsEvent
-
-    /** 关闭三步引导对话框（未完成授权） */
-    data object DismissAutoEntrySetup : SettingsEvent
 
     data object DismissMessage : SettingsEvent
 
