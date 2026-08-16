@@ -55,10 +55,13 @@
                 android:resource="@xml/overview_widget_info" />
         </receiver>
 
-        <!-- 自动记账通知监听（ADR 0014）：系统绑定，授权入口为系统通知使用权设置页 -->
+        <!-- 自动记账通知监听（ADR 0014）：系统绑定，授权入口为系统通知使用权设置页。
+             exported 必须为 true：系统"通知使用权"列表经组件解析扫描候选服务，
+             exported=false 的服务不显示、无法授权；BIND_NOTIFICATION_LISTENER 为
+             signature|privileged 权限，只有系统能绑定，exported=true 无第三方绑定风险 -->
         <service
             android:name=".notification.PaymentNotificationListener"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/auto_entry_listener_label"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER">
             <intent-filter>
