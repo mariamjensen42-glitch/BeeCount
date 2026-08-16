@@ -11,10 +11,8 @@ import com.cycling.beecount.domain.model.EntryType
         CategoryEntity::class,
         TagEntity::class,
         EntryTagEntity::class,
-        PendingDraftEntity::class,
-        ProcessedNotificationEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 @TypeConverters(LocalDateConverter::class)
@@ -22,8 +20,6 @@ abstract class BeeCountDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun categoryDao(): CategoryDao
     abstract fun tagDao(): TagDao
-    abstract fun pendingDraftDao(): PendingDraftDao
-    abstract fun processedNotificationDao(): ProcessedNotificationDao
 
     companion object {
         /** 预定义类别种子数据：只初始化一次，用户自定义类别在运行时创建 */

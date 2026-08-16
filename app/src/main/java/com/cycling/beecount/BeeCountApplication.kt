@@ -7,7 +7,6 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cycling.beecount.data.local.BeeCountDatabase
-import com.cycling.beecount.notification.NotificationChannels
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -19,12 +18,6 @@ class BeeCountApplication : Application() {
      * 避免对同一数据库文件开两个 Room 实例（ADR 0013）。
      */
     val database: BeeCountDatabase by lazy { createDatabase(this) }
-
-    override fun onCreate() {
-        super.onCreate()
-        // 自动记账的确认/失败提醒通道（ADR 0014）
-        NotificationChannels.create(this)
-    }
 }
 
 internal fun createDatabase(context: Context): BeeCountDatabase =
@@ -33,7 +26,7 @@ internal fun createDatabase(context: Context): BeeCountDatabase =
         BeeCountDatabase::class.java,
         "beecount.db",
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -151,5 +144,13 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
             "CREATE UNIQUE INDEX IF NOT EXISTS `index_processed_notifications_packageName_notifyKey_text` " +
                 "ON `processed_notifications` (`packageName`, `notifyKey`, `text`)"
         )
+    }
+}
+
+/** v5 → v6：自动记账下线（ADR 0014 弃用），删除两张表及其唯一索引 */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS `pending_drafts`")
+        db.execSQL("DROP TABLE IF EXISTS `processed_notifications`")
     }
 }

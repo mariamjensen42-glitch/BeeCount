@@ -7,5 +7,4 @@
     <string name="camera_capture_button">拍 摄</string>
     <string name="widget_label">收支速览</string>
     <string name="widget_description">今日与本月收支速览</string>
-    <string name="auto_entry_listener_label">自动记账（通知监听）</string>
 </resources>
