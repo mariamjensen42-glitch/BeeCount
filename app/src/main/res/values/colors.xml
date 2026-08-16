@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动窗口背景，与 Compose 侧 surface 暖黑保持一致（#17130D），防冷启动闪白 -->
+    <color name="bee_window_background">#17130D</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

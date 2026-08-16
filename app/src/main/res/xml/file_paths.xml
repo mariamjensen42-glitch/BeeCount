@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- CSV 导出文件缓存目录（ADR 0008） -->
+    <cache-path name="exports" path="exports/" />
+    <!-- 相机拍照临时图片（OCR 拍照记账） -->
+    <cache-path name="camera" path="camera/" />
+</paths>
