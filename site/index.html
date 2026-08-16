@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeeCount — 一句话，AI 帮你记账</title>
+<meta name="description" content="BeeCount 是一款本地优先的 Android 记账应用：用一句自然语言描述收支，AI 解析成结构化账目，确认即入库。支持 OCR 截图记账、微信账单导入、日历图表与桌面小组件。">
+<link rel="icon" type="image/webp" href="assets/icon.webp">
+<style>
+  :root {
+    --bg: #17130D;
+    --surface-low: #1F1B14;
+    --surface: #232018;
+    --surface-high: #2E2A21;
+    --surface-highest: #39352C;
+    --amber: #FFC963;
+    --on-amber: #3F2D00;
+    --amber-container: #5C4400;
+    --on-amber-container: #FFDE9A;
+    --text: #EAE2D5;
+    --text-muted: #CCC5B8;
+    --text-faint: #958F83;
+    --outline: #45403A;
+    --expense: #FF8A80;
+    --income: #6EE79A;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "LXGW WenKai", "LXGW WenKai Lite", "霞鹜文楷", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .container { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Hero ---------- */
+  header.hero {
+    text-align: center;
+    padding: 88px 24px 56px;
+    background:
+      radial-gradient(600px 320px at 50% -60px, rgba(255,201,99,.14), transparent 70%),
+      var(--bg);
+  }
+  .hero-icon {
+    width: 96px; height: 96px;
+    border-radius: 22px;
+    margin: 0 auto 24px;
+    display: block;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .hero h1 {
+    font-size: 56px;
+    letter-spacing: .02em;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .hero .tagline {
+    margin-top: 10px;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .hero .intro {
+    margin: 18px auto 0;
+    max-width: 620px;
+    color: var(--text-muted);
+    font-size: 17px;
+  }
+  .hero .intro strong { color: var(--text); font-weight: 600; }
+
+  .cta-row {
+    margin-top: 34px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); }
+  .btn-primary { background: var(--amber); color: var(--on-amber); box-shadow: 0 8px 24px rgba(255,201,99,.25); }
+  .btn-primary:hover { box-shadow: 0 10px 28px rgba(255,201,99,.35); }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--outline); }
+  .btn-ghost:hover { border-color: var(--text-faint); }
+
+  .hero-chips {
+    margin-top: 28px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    color: var(--text-faint);
+    font-size: 14px;
+  }
+  .chip {
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--outline);
+  }
+
+  /* ---------- Sections ---------- */
+  section { padding: 64px 0; }
+  section h2 {
+    font-size: 30px;
+    text-align: center;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  section .sub {
+    text-align: center;
+    color: var(--text-faint);
+    max-width: 560px;
+    margin: 0 auto 44px;
+    font-size: 15px;
+  }
+
+  /* ---------- Features ---------- */
+  .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .feature {
+    background: linear-gradient(180deg, var(--surface-high), var(--surface-low));
+    border: 1px solid var(--outline);
+    border-radius: 18px;
+    padding: 26px 26px 24px;
+    transition: border-color .15s ease;
+  }
+  .feature:hover { border-color: rgba(255,201,99,.45); }
+  .feature .icon {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: var(--amber-container);
+    color: var(--on-amber-container);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .feature .icon svg { width: 24px; height: 24px; }
+  .feature h3 { font-size: 19px; font-weight: 700; color: var(--amber); margin-bottom: 8px; }
+  .feature p { font-size: 15px; color: var(--text-muted); }
+
+  /* ---------- Privacy ---------- */
+  .privacy {
+    background: var(--surface-low);
+    border-top: 1px solid var(--outline);
+    border-bottom: 1px solid var(--outline);
+  }
+  .privacy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .privacy-item {
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: 16px;
+    padding: 22px;
+  }
+  .privacy-item h3 { font-size: 16px; color: var(--on-amber-container); margin-bottom: 6px; }
+  .privacy-item p { font-size: 14px; color: var(--text-muted); }
+
+  /* ---------- Download ---------- */
+  .download-card {
+    max-width: 640px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, var(--surface-high), var(--surface-low));
+    border: 1px solid var(--outline);
+    border-radius: 20px;
+    padding: 36px 36px 32px;
+    text-align: center;
+  }
+  .version-badge {
+    display: inline-block;
+    background: var(--amber-container);
+    color: var(--on-amber-container);
+    font-size: 13px;
+    padding: 4px 14px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .download-card h3 { font-size: 24px; color: var(--text); margin-bottom: 10px; }
+  .download-card .meta { color: var(--text-faint); font-size: 14px; margin-bottom: 26px; }
+  .download-card .meta span { display: block; }
+  .hash-row { margin-top: 18px; font-size: 13px; color: var(--text-faint); }
+
+  /* ---------- Footer ---------- */
+  footer {
+    border-top: 1px solid var(--outline);
+    padding: 36px 0 44px;
+    color: var(--text-faint);
+    font-size: 14px;
+  }
+  footer .container { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  footer nav { display: flex; gap: 20px; flex-wrap: wrap; }
+  footer nav a { color: var(--text-muted); }
+
+  @media (max-width: 760px) {
+    .hero { padding: 64px 20px 44px; }
+    .hero h1 { font-size: 42px; }
+    .hero .tagline { font-size: 20px; }
+    .features { grid-template-columns: 1fr; }
+    .privacy-grid { grid-template-columns: 1fr; }
+    .download-card { padding: 28px 22px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <img class="hero-icon" src="assets/icon.webp" alt="BeeCount 图标">
+  <h1>BeeCount</h1>
+  <p class="tagline">一句话，AI 帮你记账</p>
+  <p class="intro">
+    BeeCount 是一款<strong>本地优先</strong>的 Android 记账应用。用一句自然语言描述收支
+    （「昨天打车花了 30 块」「老板发了 500 红包」），AI 解析成结构化账目，你确认后入库——
+    再也不用手动填表。
+  </p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="https://github.com/mariamjensen42-glitch/BeeCount/releases/latest/download/app-release.apk">
+      ↓ 下载 App（v0.0.4）
+    </a>
+    <a class="btn btn-ghost" href="https://github.com/mariamjensen42-glitch/BeeCount">GitHub 仓库</a>
+  </div>
+  <div class="hero-chips">
+    <span class="chip">数据本地存储</span>
+    <span class="chip">无需账号</span>
+    <span class="chip">MIT 开源</span>
+    <span class="chip">支持 Android 12+</span>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <h2>怎么记，你说了算</h2>
+    <p class="sub">文字、截图、账单文件、桌面小组件——四种方式让每一笔钱都清清楚楚。</p>
+    <div class="features">
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 1 1 8.5-8.5z"/><path d="M3 21l2.2-4.4"/><path d="M12 6l1.3 3.7L17 11l-3.7 1.3L12 16l-1.3-3.7L7 11l3.7-1.3L12 6z"/></svg></div>
+        <h3>AI 记账小助手</h3>
+        <p>自然语言即输入，日期、金额、类别一次说清。解析结果以确认卡片呈现，金额与类别可编辑、确认即入库，误记五秒内可撤销。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.8L10 4h4l2.2 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z"/><circle cx="12" cy="13" r="3.6"/></svg></div>
+        <h3>OCR 截图记账</h3>
+        <p>选一张支付宝 / 微信 / 云闪付的支付截图，手机本地提取文字，再交给 AI 解析成账目，走与文字输入完全相同的确认流程。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/><path d="M12 4v9"/><path d="M8 9.5L12 13.5 16 9.5"/></svg></div>
+        <h3>微信账单导入</h3>
+        <p>导入微信支付导出的账单文件：自动按交易单号去重、关键词映射类别，汇总确认后一次性入库；导入不满意，30 秒内一键撤销。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4"/><path d="M4 10.5h16"/></svg></div>
+        <h3>日历与图表</h3>
+        <p>月历浏览全部账目，点一下空日即可补记历史；月度报表、年度报告、趋势图与年度热力图，支出结构一眼看穿。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7l9 9-7 7-9-9V4z"/><circle cx="8.5" cy="8.5" r="1.6"/></svg></div>
+        <h3>标签与账本</h3>
+        <p>彩色标签横向打标，一笔记账可带多个标签；账本页按天分组、多选标签交集筛选，任意维度的历史账目随时可查。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg></div>
+        <h3>收支速览小组件</h3>
+        <p>桌面小组件两档尺寸，今日与本月收支不用打开 App 也能看；数字口径与 App 内今日合计、日历月报完全一致。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V5"/><path d="M7.5 9.5L12 5l4.5 4.5"/><path d="M4 17.5v2A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg></div>
+        <h3>CSV 导出</h3>
+        <p>全部账目一键导出为 CSV：日期、类型、类别、标签、金额、备注一应俱全，随时备份、随时用表格软件查看。</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a7 7 0 0 0 9.5 9.5z"/></svg></div>
+        <h3>暗色独占</h3>
+        <p>蜂蜜金配暖黑暗色，专为夜间记账设计，不跟随系统、也不刺眼；霞鹜文楷的字形贯穿全文，记账也像写字。</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="privacy">
+  <div class="container">
+    <h2>数据与隐私</h2>
+    <p class="sub">记账是私事，账目就该留在你手里。</p>
+    <div class="privacy-grid">
+      <div class="privacy-item">
+        <h3>本地优先</h3>
+        <p>账目只存在你手机本地的数据库里，不设账号、不上云、不收集任何统计信息。</p>
+      </div>
+      <div class="privacy-item">
+        <h3>直连 DeepSeek</h3>
+        <p>AI 解析使用你自备的 DeepSeek API Key，App 直连 DeepSeek 官方接口，不经任何第三方中转。</p>
+      </div>
+      <div class="privacy-item">
+        <h3>本地文字识别</h3>
+        <p>截图文字由设备端 ML Kit 提取，识别不出手机；解析请求与 AI 记账相同，只直连 DeepSeek。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>下载 BeeCount</h2>
+    <div class="download-card">
+      <span class="version-badge">最新版本 v0.0.4 · 2026-08-16 发布</span>
+      <h3>现在就试试</h3>
+      <div class="meta">
+        <span>Android 12 及以上 · APK 体积约 10 MB</span>
+        <span>开源免费 · 无广告 · 无内购</span>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/mariamjensen42-glitch/BeeCount/releases/latest/download/app-release.apk">下载 app-release.apk</a>
+        <a class="btn btn-ghost" href="https://github.com/mariamjensen42-glitch/BeeCount/releases/latest/download/SHA-256.txt">SHA-256 校验</a>
+      </div>
+      <div class="hash-row">
+        每次发布均带签名与 SHA-256 校验值；全部历史版本见
+        <a href="https://github.com/mariamjensen42-glitch/BeeCount/releases">GitHub Releases</a>。
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <span>BeeCount · MIT License · © 2026 lihua</span>
+    <nav>
+      <a href="https://github.com/mariamjensen42-glitch/BeeCount">GitHub</a>
+      <a href="https://github.com/mariamjensen42-glitch/BeeCount/releases">Releases</a>
+      <a href="https://github.com/mariamjensen42-glitch/BeeCount/blob/main/LICENSE">License</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
