@@ -65,7 +65,6 @@ import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.usecase.WeChatImportPreview
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.common.TagManageSheet
-import com.cycling.beecount.notification.PaymentNotificationListener
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.AdjustmentsHorizontal
@@ -554,20 +553,13 @@ private fun KeepAliveDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * 打开通知监听授权页（ADR 0014）：
- * 优先用 API 30+ 的详情直达（EXTRA 带组件名，直接落到 BeeCount 的授权开关，
- * 绕开 MIUI 等 OEM 在列表里找不到应用的问题）；个别设备没有该 Activity 时兜底到列表页。
+ * 打开通知监听授权页（ADR 0014）：系统"通知使用权"列表页。
+ * 不用 ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS 详情直达——MIUI 等部分 OEM
+ * 未实现该 Activity（打开即空白/无反应，用户实测）；列表页各厂商都有，且
+ * exported=true 后应用必然出现在列表里。
  */
 private fun openNotificationListenerSettings(context: Context) {
-    val component = android.content.ComponentName(context, PaymentNotificationListener::class.java)
-    val detailIntent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).apply {
-        putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
-    }
-    try {
-        context.startActivity(detailIntent)
-    } catch (e: android.content.ActivityNotFoundException) {
-        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-    }
+    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
 }
 
 @Composable
