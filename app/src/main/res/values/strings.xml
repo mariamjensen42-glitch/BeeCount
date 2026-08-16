@@ -5,4 +5,6 @@
     <string name="cd_send_message">发送</string>
     <string name="camera_permission_denied">需要相机权限才能拍照记账，请在系统设置中开启</string>
     <string name="camera_capture_button">拍 摄</string>
+    <string name="widget_label">收支速览</string>
+    <string name="widget_description">今日与本月收支速览</string>
 </resources>

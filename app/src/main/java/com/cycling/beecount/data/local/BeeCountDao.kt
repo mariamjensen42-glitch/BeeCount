@@ -32,6 +32,17 @@ interface EntryDao {
     )
     fun observeTotalsOn(date: LocalDate): Flow<TotalsRow>
 
+    /** 一次性区间汇总（支出/收入合计，中性记录不计）：桌面小组件用（ADR 0013） */
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expense,
+            COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS income
+        FROM entries WHERE date BETWEEN :start AND :end
+        """
+    )
+    suspend fun totalsBetween(start: LocalDate, end: LocalDate): TotalsRow
+
     /** 账本页：全部账目（时间倒序）+ 各自的标签 */
     @Transaction
     @Query("SELECT * FROM entries ORDER BY date DESC, createdAt DESC")

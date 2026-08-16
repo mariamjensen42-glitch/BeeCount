@@ -4,6 +4,7 @@ import com.cycling.beecount.data.repository.DataStoreAiKeyRepository
 import com.cycling.beecount.data.repository.RoomCategoryRepository
 import com.cycling.beecount.data.repository.RoomEntryRepository
 import com.cycling.beecount.data.repository.RoomTagRepository
+import com.cycling.beecount.data.repository.WidgetAwareEntryRepository
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
@@ -14,15 +15,22 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
 
+    /** 基础实现绑定为命名依赖，供装饰器委托（ADR 0013：widget 变更即推） */
+    @Binds
+    @Named("base")
+    @Singleton
+    abstract fun bindBaseEntryRepository(impl: RoomEntryRepository): EntryRepository
+
     @Binds
     @Singleton
-    abstract fun bindEntryRepository(impl: RoomEntryRepository): EntryRepository
+    abstract fun bindEntryRepository(impl: WidgetAwareEntryRepository): EntryRepository
 
     @Binds
     @Singleton

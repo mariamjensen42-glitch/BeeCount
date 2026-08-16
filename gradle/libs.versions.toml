@@ -22,6 +22,7 @@ datastore = "1.2.1"
 heroicons = "2.2.0"
 mlkitTextRecognitionChinese = "16.0.1"
 camerax = "1.4.0"
+glance = "1.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,10 @@ camerax-camera2   = { group = "androidx.camera", name = "camera-camera2",  versi
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view      = { group = "androidx.camera", name = "camera-view",     version.ref = "camerax" }
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycleRuntimeKtx" }
+
+# Glance 桌面小组件（ADR 0013；1.2 仍 beta，锁 1.1.1 稳定版）
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 
 # Room
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
