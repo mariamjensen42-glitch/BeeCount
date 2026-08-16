@@ -66,6 +66,7 @@ import com.cycling.beecount.ui.theme.IncomeGreen
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.PaperAirplane
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -507,15 +508,19 @@ private fun InputBar(
             ),
             modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.width(8.dp))
-        Button(
+        Spacer(Modifier.width(4.dp))
+        IconButton(
             onClick = {
                 onSend(text)
                 text = ""
             },
             enabled = enabled && text.isNotBlank(),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
         ) {
-            Text("记一笔")
+            Icon(
+                imageVector = Heroicons.Outline.PaperAirplane,
+                contentDescription = stringResource(R.string.cd_send_message),
+            )
         }
     }
 }
