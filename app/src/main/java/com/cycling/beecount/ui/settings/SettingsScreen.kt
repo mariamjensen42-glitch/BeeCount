@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -46,6 +48,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -56,6 +60,18 @@ import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.usecase.WeChatImportPreview
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.common.TagManageSheet
+import com.woowla.compose.icon.collections.heroicons.Heroicons
+import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.AdjustmentsHorizontal
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowDownTray
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowUpTray
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CpuChip
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.InformationCircle
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Key
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Sparkles
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Squares2x2
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Tag
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Trash
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -149,6 +165,7 @@ fun SettingsScreen(
             SettingsRow(
                 title = "DeepSeek API Key",
                 subtitle = if (uiState.apiKeyMasked.isEmpty()) "未设置" else uiState.apiKeyMasked,
+                icon = Heroicons.Outline.Key,
                 onClick = { showKeyDialog = true },
                 trailing = {
                     if (uiState.apiKeyMasked.isNotEmpty()) {
@@ -160,8 +177,8 @@ fun SettingsScreen(
 
             // 管理
             SettingsSectionHeader("管理")
-            SettingsRow("管理类别", subtitle = "新增 / 改名 / 删除", onClick = { showCategoryDialog = true })
-            SettingsRow("管理标签", subtitle = "改名 / 改色 / 删除", onClick = { showTagDialog = true })
+            SettingsRow("管理类别", subtitle = "新增 / 改名 / 删除", icon = Heroicons.Outline.Squares2x2, onClick = { showCategoryDialog = true })
+            SettingsRow("管理标签", subtitle = "改名 / 改色 / 删除", icon = Heroicons.Outline.Tag, onClick = { showTagDialog = true })
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
             // 数据
@@ -169,13 +186,14 @@ fun SettingsScreen(
             SettingsRow(
                 title = "导入微信账单",
                 subtitle = "读取微信支付账单 xlsx，恢复为账目",
+                icon = Heroicons.Outline.ArrowDownTray,
                 onClick = {
                     wechatImportLauncher.launch(
                         arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                     )
                 },
             )
-            SettingsRow("导出 CSV", subtitle = "全部账目，经系统分享保存", onClick = {
+            SettingsRow("导出 CSV", subtitle = "全部账目，经系统分享保存", icon = Heroicons.Outline.ArrowUpTray, onClick = {
                 scope.launch {
                     val csv = exportCsv()
                     if (csv != null) shareCsv(context, csv)
@@ -184,20 +202,24 @@ fun SettingsScreen(
             SettingsRow(
                 title = "填充演示数据",
                 subtitle = "清空账目后写入近五年 9,000 笔样本",
+                icon = Heroicons.Outline.Sparkles,
+                danger = true,
                 onClick = { showDemoConfirm = true },
             )
             SettingsRow(
                 title = "清空全部账目",
                 subtitle = "只清账目，类别与标签保留",
+                icon = Heroicons.Outline.Trash,
+                danger = true,
                 onClick = { showClearConfirm = true },
             )
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
             // 关于
             SettingsSectionHeader("关于")
-            SettingsRow("版本", subtitle = appVersionName(context))
-            SettingsRow("字体", subtitle = "霞鹜文楷 Lite（SIL OFL 1.1）")
-            SettingsRow("AI 模型", subtitle = "DeepSeek · deepseek-v4-flash")
+            SettingsRow("版本", subtitle = appVersionName(context), icon = Heroicons.Outline.InformationCircle)
+            SettingsRow("字体", subtitle = "霞鹜文楷 Lite（SIL OFL 1.1）", icon = Heroicons.Outline.AdjustmentsHorizontal)
+            SettingsRow("AI 模型", subtitle = "DeepSeek · deepseek-v4-flash", icon = Heroicons.Outline.CpuChip)
         }
     }
 
@@ -302,9 +324,12 @@ private fun SettingsSectionHeader(title: String) {
 private fun SettingsRow(
     title: String,
     subtitle: String? = null,
+    icon: ImageVector? = null,
+    danger: Boolean = false,
     onClick: () -> Unit = {},
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val accent = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -312,8 +337,21 @@ private fun SettingsRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (danger) MaterialTheme.colorScheme.error else Color.Unspecified,
+            )
             if (subtitle != null) {
                 Text(
                     subtitle,
@@ -326,7 +364,7 @@ private fun SettingsRow(
         Text(
             "›",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
