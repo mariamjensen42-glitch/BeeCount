@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cycling.beecount.data.local.BeeCountDatabase
+import com.cycling.beecount.notification.NotificationChannels
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -18,6 +19,12 @@ class BeeCountApplication : Application() {
      * 避免对同一数据库文件开两个 Room 实例（ADR 0013）。
      */
     val database: BeeCountDatabase by lazy { createDatabase(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // 自动记账的确认/失败提醒通道（ADR 0014）
+        NotificationChannels.create(this)
+    }
 }
 
 internal fun createDatabase(context: Context): BeeCountDatabase =
@@ -26,7 +33,7 @@ internal fun createDatabase(context: Context): BeeCountDatabase =
         BeeCountDatabase::class.java,
         "beecount.db",
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -103,6 +110,46 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL(
             "INSERT OR IGNORE INTO categories (name, type, isCustom) VALUES (?, ?, ?)",
             arrayOf<Any>("快递物流", "EXPENSE", 0),
+        )
+    }
+}
+
+/**
+ * v4 → v5：自动记账（ADR 0014）新增待确认草稿表与已处理通知去重表。
+ * 只建新表与唯一索引，不动已有数据，无损。
+ */
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `pending_drafts` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `type` TEXT NOT NULL,
+                `amount` REAL NOT NULL,
+                `amountRaw` TEXT NOT NULL,
+                `categoryName` TEXT NOT NULL,
+                `date` TEXT NOT NULL,
+                `tagsJson` TEXT NOT NULL,
+                `note` TEXT,
+                `originalText` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `processed_notifications` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `packageName` TEXT NOT NULL,
+                `notifyKey` TEXT NOT NULL,
+                `text` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_processed_notifications_packageName_notifyKey_text` " +
+                "ON `processed_notifications` (`packageName`, `notifyKey`, `text`)"
         )
     }
 }
