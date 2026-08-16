@@ -52,6 +52,8 @@ class LedgerViewModel @Inject constructor(
 
                     com.cycling.beecount.domain.model.EntryType.INCOME ->
                         acc.copy(income = acc.income + entry.amount)
+
+                    com.cycling.beecount.domain.model.EntryType.NEUTRAL -> acc
                 }
             }
         }

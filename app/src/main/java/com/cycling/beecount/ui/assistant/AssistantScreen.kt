@@ -59,12 +59,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.R
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.IncomeGreen
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.PaperAirplane
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -72,12 +74,19 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AssistantRoute(
     prefillDate: LocalDate? = null,
+    prefillText: String? = null,
+    openDraftId: Long? = null,
+    onPrefillConsumed: () -> Unit = {},
     onEntrySaved: (LocalDate) -> Unit = {},
     viewModel: AssistantViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(prefillDate) {
         viewModel.onEvent(AssistantEvent.SetTargetDate(prefillDate))
+    }
+    // 确认通知深链（ADR 0014）：定位到通知对应的那张待确认草稿卡片
+    LaunchedEffect(openDraftId) {
+        openDraftId?.let { viewModel.onEvent(AssistantEvent.PreferDraft(it)) }
     }
     LaunchedEffect(uiState.savedEntryDate) {
         uiState.savedEntryDate?.let {
@@ -88,6 +97,8 @@ fun AssistantRoute(
     AssistantScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
+        prefillText = prefillText,
+        onPrefillConsumed = onPrefillConsumed,
     )
 }
 
@@ -101,6 +112,8 @@ fun AssistantRoute(
 fun AssistantScreen(
     uiState: AssistantUiState,
     onEvent: (AssistantEvent) -> Unit,
+    prefillText: String? = null,
+    onPrefillConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -127,14 +140,41 @@ fun AssistantScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text("AI 记账助手") })
+            TopAppBar(
+                title = { Text("AI 记账助手") },
+                // OCR 双入口放顶栏，输入行只留输入框与发送，避免一行四个元素拥挤
+                actions = {
+                    if (hasCameraHardware) {
+                        IconButton(onClick = { onEvent(AssistantEvent.ShowCamera) }) {
+                            Icon(
+                                imageVector = Heroicons.Outline.Camera,
+                                contentDescription = stringResource(R.string.cd_camera_capture),
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Heroicons.Outline.Photo,
+                            contentDescription = stringResource(R.string.cd_ocr_pick_image),
+                        )
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .imePadding(),
+                .imePadding()
+                // 底部留出悬浮胶囊高度，输入栏不被胶囊盖住（常量已含胶囊底部留白）
+                .padding(bottom = FLOATING_PILL_CLEARANCE),
         ) {
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -199,18 +239,13 @@ fun AssistantScreen(
             InputBar(
                 enabled = !uiState.isParsing,
                 targetDate = uiState.targetDate,
+                prefillText = prefillText,
+                onPrefillConsumed = onPrefillConsumed,
                 onSend = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
-                onPickImage = {
-                    imagePickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onOpenCamera = if (hasCameraHardware) {
-                    { onEvent(AssistantEvent.ShowCamera) }
-                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 64.dp),
+                    // 底部留白交给外层 Column 的 FLOATING_PILL_CLEARANCE，这里只留上下间距
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
             )
         }
     }
@@ -360,11 +395,23 @@ private fun SummaryEntryRow(entry: Entry) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
-        )
+        when (entry.type) {
+            EntryType.EXPENSE -> Text(
+                text = "-¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ExpenseRed,
+            )
+            EntryType.INCOME -> Text(
+                text = "+¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IncomeGreen,
+            )
+            EntryType.NEUTRAL -> Text(
+                text = "¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -450,34 +497,22 @@ private fun InputBar(
     enabled: Boolean,
     targetDate: LocalDate?,
     onSend: (String) -> Unit,
-    onPickImage: () -> Unit,
-    onOpenCamera: (() -> Unit)?,
+    prefillText: String? = null,
+    onPrefillConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
+    // 失败重试深链（ADR 0014）：预填支付通知原文且只生效一次；
+    // 预填后回调消费深链，避免每次进入助手页都重新预填
+    var prefilled by remember { mutableStateOf(false) }
+    LaunchedEffect(prefillText) {
+        if (prefillText != null && !prefilled) {
+            text = prefillText
+            prefilled = true
+            onPrefillConsumed()
+        }
+    }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        if (onOpenCamera != null) {
-            IconButton(
-                onClick = onOpenCamera,
-                enabled = enabled,
-                colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
-            ) {
-                Icon(
-                    imageVector = Heroicons.Outline.Camera,
-                    contentDescription = stringResource(R.string.cd_camera_capture),
-                )
-            }
-        }
-        IconButton(
-            onClick = onPickImage,
-            enabled = enabled,
-            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
-        ) {
-            Icon(
-                imageVector = Heroicons.Outline.Photo,
-                contentDescription = stringResource(R.string.cd_ocr_pick_image),
-            )
-        }
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -492,15 +527,19 @@ private fun InputBar(
             ),
             modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.width(8.dp))
-        Button(
+        Spacer(Modifier.width(4.dp))
+        IconButton(
             onClick = {
                 onSend(text)
                 text = ""
             },
             enabled = enabled && text.isNotBlank(),
+            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
         ) {
-            Text("记一笔")
+            Icon(
+                imageVector = Heroicons.Outline.PaperAirplane,
+                contentDescription = stringResource(R.string.cd_send_message),
+            )
         }
     }
 }

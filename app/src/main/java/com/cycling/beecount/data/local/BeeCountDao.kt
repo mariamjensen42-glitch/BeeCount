@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.Junction
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Relation
 import androidx.room.Transaction
@@ -31,6 +32,17 @@ interface EntryDao {
     )
     fun observeTotalsOn(date: LocalDate): Flow<TotalsRow>
 
+    /** 一次性区间汇总（支出/收入合计，中性记录不计）：桌面小组件用（ADR 0013） */
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expense,
+            COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS income
+        FROM entries WHERE date BETWEEN :start AND :end
+        """
+    )
+    suspend fun totalsBetween(start: LocalDate, end: LocalDate): TotalsRow
+
     /** 账本页：全部账目（时间倒序）+ 各自的标签 */
     @Transaction
     @Query("SELECT * FROM entries ORDER BY date DESC, createdAt DESC")
@@ -46,6 +58,32 @@ interface EntryDao {
 
     @Insert
     suspend fun insertAll(entries: List<EntryEntity>)
+
+    /** 批量插入并忽略 sourceRef 唯一索引冲突（ADR 0012 导入去重兜底），返回各行的 rowId，冲突行为 -1 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoreConflict(entries: List<EntryEntity>): List<Long>
+
+    /** 批量插入并给本次实际插入的账目挂统一标签，同事务（ADR 0012 微信来源标签） */
+    @Transaction
+    suspend fun insertAllWithTag(entries: List<EntryEntity>, tagId: Long): Int {
+        val rowIds = insertAllIgnoreConflict(entries)
+        var inserted = 0
+        rowIds.forEach { rowId ->
+            if (rowId > 0) {
+                insertEntryTag(EntryTagEntity(entryId = rowId, tagId = tagId))
+                inserted++
+            }
+        }
+        return inserted
+    }
+
+    /** 微信账单导入去重：返回 [refs] 中已存在于库里的交易单号 */
+    @Query("SELECT sourceRef FROM entries WHERE sourceRef IN (:refs) AND sourceRef IS NOT NULL")
+    suspend fun existingSourceRefs(refs: List<String>): List<String>
+
+    /** 撤销一次导入：按本次导入的交易单号集合删除账目（ADR 0012），返回删除笔数 */
+    @Query("DELETE FROM entries WHERE sourceRef IN (:refs)")
+    suspend fun deleteBySourceRefs(refs: List<String>): Int
 
     @Insert
     suspend fun insertEntryTag(entryTag: EntryTagEntity)
@@ -145,6 +183,7 @@ fun EntrySnapshotRow.toDomain(): EntrySnapshot = EntrySnapshot(
         note = entry.note,
         createdAt = entry.createdAt,
         tags = tags.map { it.toDomain() },
+        sourceRef = entry.sourceRef,
     ),
     tagIds = tagIds,
 )
@@ -165,6 +204,7 @@ fun EntryWithTags.toDomain(): Entry = Entry(
     note = entry.note,
     createdAt = entry.createdAt,
     tags = tags.map { it.toDomain() },
+    sourceRef = entry.sourceRef,
 )
 
 @Dao

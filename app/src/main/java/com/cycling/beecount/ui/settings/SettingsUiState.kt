@@ -1,12 +1,18 @@
 package com.cycling.beecount.ui.settings
 
+import android.net.Uri
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.Tag
+import com.cycling.beecount.domain.model.WeChatImportDraft
+import com.cycling.beecount.domain.usecase.WeChatImportPreview
 
 /**
  * MVI 架构：设置页 UI 状态（ADR 0008）。
  * [apiKeyMasked] 为脱敏展示的 Key，空表示未配置。
+ *
+ * [weChatImport] 承载微信账单导入流程（ADR 0012）：Idle → Loading → Confirm；
+ * [pendingWeChatUndo] 非空时表示刚完成一次导入、撤销窗口开启中（30 秒）。
  */
 data class SettingsUiState(
     val apiKeyMasked: String = "",
@@ -14,6 +20,36 @@ data class SettingsUiState(
     val tags: List<Tag> = emptyList(),
     val transientMessage: String? = null,
     val transientError: String? = null,
+    val weChatImport: WeChatImportUiState = WeChatImportUiState.Idle,
+    val pendingWeChatUndo: PendingWeChatUndo? = null,
+    /** 自动记账（ADR 0014）：总开关状态与两项权限授权状态 */
+    val autoEntryEnabled: Boolean = false,
+    val notificationListeningGranted: Boolean = false,
+    val postNotificationsGranted: Boolean = false,
+    /** 拨开关但权限未齐时进入三步引导；授权齐后自动完成开启 */
+    val autoEntrySetupPending: Boolean = false,
+)
+
+/**
+ * 微信账单导入流程状态（ADR 0012）。
+ * [Confirm] 持有预览与草稿：预览供确认层展示，草稿在点"导入"时重新跑去重后入库。
+ */
+sealed interface WeChatImportUiState {
+    data object Idle : WeChatImportUiState
+
+    data object Loading : WeChatImportUiState
+
+    data class Confirm(
+        val preview: WeChatImportPreview,
+        val draft: WeChatImportDraft,
+    ) : WeChatImportUiState
+}
+
+/** 一次导入完成后的撤销窗口数据（ADR 0012）：按交易单号集合批量删除 */
+data class PendingWeChatUndo(
+    val sourceRefs: List<String>,
+    val imported: Int,
+    val duplicates: Int,
 )
 
 /**
@@ -41,6 +77,27 @@ sealed interface SettingsEvent {
 
     /** 清空现有账目后写入当前年度演示样本 */
     data object FillDemoData : SettingsEvent
+
+    /** 文件选择器选中的微信账单，开始解析 */
+    data class ImportWeChatBill(val uri: Uri) : SettingsEvent
+
+    /** 确认层点"导入"，一次性入库 */
+    data object ConfirmWeChatImport : SettingsEvent
+
+    /** 关闭确认层（取消导入） */
+    data object DismissWeChatImport : SettingsEvent
+
+    /** 撤销窗口内点"撤销"，删除本次导入的全部账目 */
+    data object UndoWeChatImport : SettingsEvent
+
+    /** 自动记账总开关（ADR 0014）：开需前置检查（Key + 两项权限），缺则进三步引导 */
+    data class ToggleAutoEntry(val enable: Boolean) : SettingsEvent
+
+    /** 从系统设置返回/权限请求回调后刷新授权状态；授权齐时自动完成开启 */
+    data object RefreshAutoEntryPermissions : SettingsEvent
+
+    /** 关闭三步引导对话框（未完成授权） */
+    data object DismissAutoEntrySetup : SettingsEvent
 
     data object DismissMessage : SettingsEvent
 

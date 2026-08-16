@@ -2,6 +2,7 @@ package com.cycling.beecount.domain.repository
 
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.Tag
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
@@ -42,6 +43,18 @@ interface EntryRepository {
 
     /** 清空全部账目（ADR 0008：只清账目，类别/标签保留） */
     suspend fun clearAll()
+
+    /** 微信账单导入去重：返回 [refs] 中已存在于库里的交易单号（ADR 0012） */
+    suspend fun findExistingSourceRefs(refs: Collection<String>): Set<String>
+
+    /** 批量入库微信导入的账目（忽略 sourceRef 唯一索引冲突），返回实际插入笔数（ADR 0012） */
+    suspend fun addAll(entries: List<Entry>): Int
+
+    /** 批量入库并给本次插入的账目统一挂标签，同事务（ADR 0012 微信来源标签） */
+    suspend fun addAllWithTag(entries: List<Entry>, tag: Tag): Int
+
+    /** 撤销一次导入：按本次导入的交易单号集合删除账目，返回删除笔数（ADR 0012） */
+    suspend fun deleteBySourceRefs(refs: Collection<String>): Int
 }
 
 /** 删除账目的可恢复快照，保留 Entry 全字段及删除时的原始标签 id。 */

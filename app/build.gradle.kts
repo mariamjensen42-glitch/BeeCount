@@ -77,6 +77,10 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.navigation.compose)
 
+    // Glance 桌面小组件（ADR 0013）
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+
     // Network
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)

@@ -197,4 +197,45 @@ class ParseEntryUseCaseTest {
         useCase(chat)("昨天打车花了30块")
         assertFalse(capturedPrompt.contains("OCR 文字"))
     }
+
+    @Test
+    fun `isNotificationInput=true injects notification context and reference date`() = runTest {
+        var capturedPrompt = ""
+        val chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult {
+                capturedPrompt = systemPrompt
+                return AiChatResult.Content("""{"recordable": false, "message": "ok"}""")
+            }
+        }
+        val notificationDate = LocalDate.of(2026, 8, 14)
+        useCase(chat)("你已成功支付15.00元", isNotificationInput = true, referenceDate = notificationDate)
+        assertTrue(capturedPrompt.contains("支付通知文本"))
+        assertTrue(capturedPrompt.contains("2026-08-14"))
+    }
+
+    @Test
+    fun `future date check uses reference date for notification input`() = runTest {
+        var calls = 0
+        val chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult {
+                calls++
+                // 参照日 8-14：模型先给出 8-15（未来），重试后给出 8-13
+                val date = if (calls == 1) "2026-08-15" else "2026-08-13"
+                return AiChatResult.Content(
+                    """{"recordable": true, "type": "expense", "amount_raw": "15", "amount": 15.0, "category": "餐饮", "date": "$date"}"""
+                )
+            }
+        }
+        val outcome = useCase(chat)(
+            "你已成功支付15.00元",
+            isNotificationInput = true,
+            referenceDate = LocalDate.of(2026, 8, 14),
+        )
+        assertEquals(2, calls)
+        assertTrue(outcome is ParseEntryUseCase.Outcome.Success)
+        assertEquals(
+            LocalDate.of(2026, 8, 13),
+            (outcome as ParseEntryUseCase.Outcome.Success).result.date,
+        )
+    }
 }

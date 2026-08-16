@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -203,7 +204,7 @@ private fun DayHeader(date: LocalDate, dayEntries: List<Entry>) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = date.format(DateTimeFormatter.ofPattern("M月d日")),
+            text = date.format(DateTimeFormatter.ofPattern("yyyy年M月d日")),
             style = MaterialTheme.typography.titleMedium,
         )
         Row {
@@ -240,19 +241,33 @@ private fun LedgerEntryRow(entry: Entry) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(entry.categoryName, style = MaterialTheme.typography.bodyLarge)
                     Text(
                         entry.note.ifBlank { entry.amountRaw },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
-                )
+                when (entry.type) {
+                    EntryType.EXPENSE -> Text(
+                        text = "-¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = ExpenseRed,
+                    )
+                    EntryType.INCOME -> Text(
+                        text = "+¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = IncomeGreen,
+                    )
+                    EntryType.NEUTRAL -> Text(
+                        text = "¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (entry.tags.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))

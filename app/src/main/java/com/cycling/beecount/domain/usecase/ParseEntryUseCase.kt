@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.first
  * 流程：取 Key → 取类别 → 构造 prompt（注入当前日期）→ 调用模型 → 解析 JSON → 校验。
  * 网络错误或解析结果非法时自动重试一次（Q6b）；Key 无效不重试。
  */
-class ParseEntryUseCase @Inject constructor(
+/** open 仅供测试替身覆写（NotificationEntryUseCaseTest 的 stub） */
+open class ParseEntryUseCase @Inject constructor(
     private val aiKeyRepository: AiKeyRepository,
     private val categoryRepository: CategoryRepository,
     private val tagRepository: TagRepository,
@@ -42,7 +43,15 @@ class ParseEntryUseCase @Inject constructor(
         data class Error(val message: String) : Outcome
     }
 
-    suspend operator fun invoke(input: String, isOcrInput: Boolean = false): Outcome {
+    /**
+     * open 仅供测试替身覆写（NotificationEntryUseCaseTest 的 stub）。
+     */
+    open suspend operator fun invoke(
+        input: String,
+        isOcrInput: Boolean = false,
+        isNotificationInput: Boolean = false,
+        referenceDate: LocalDate? = null,
+    ): Outcome {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return Outcome.Error("请输入要记账的内容")
 
@@ -51,8 +60,9 @@ class ParseEntryUseCase @Inject constructor(
 
         val categories = categoryRepository.observeAll().first()
         val tags = tagRepository.observeAll().first()
-        val today = currentDate()
-        val systemPrompt = buildSystemPrompt(categories, tags, today, isOcrInput)
+        // 通知流以支付通知的时间为参照日（ADR 0014），普通输入仍用今天
+        val today = referenceDate ?: currentDate()
+        val systemPrompt = buildSystemPrompt(categories, tags, today, isOcrInput, isNotificationInput)
 
         // 最多尝试 2 次：原始请求 + 失败重试一次
         repeat(2) { attempt ->
@@ -90,7 +100,13 @@ class ParseEntryUseCase @Inject constructor(
         return Outcome.Error("网络开小差了，请稍后再试")
     }
 
-    private fun buildSystemPrompt(categories: List<Category>, tags: List<Tag>, today: LocalDate, isOcrInput: Boolean = false): String {
+    private fun buildSystemPrompt(
+        categories: List<Category>,
+        tags: List<Tag>,
+        today: LocalDate,
+        isOcrInput: Boolean = false,
+        isNotificationInput: Boolean = false,
+    ): String {
         val expenseCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.EXPENSE }
             .joinToString("、") { it.name }
         val incomeCategories = categories.filter { it.type == com.cycling.beecount.domain.model.EntryType.INCOME }
@@ -130,8 +146,22 @@ class ParseEntryUseCase @Inject constructor(
             |
             |示例输入：你好
             |示例输出：{"recordable": false, "message": "你好呀！告诉我一笔收支就能帮你记账，比如：昨天打车花了30块"}
-            |${if (isOcrInput) "\n|以下输入来自支付截图的 OCR 文字，请从中提取收支信息。\n|额外要求：在 JSON 中增加 \"note\" 字段，用一句不超过 20 字的中文描述这笔消费，需保留商品名称、数量、商家等关键信息（如\"打印纸5包\"、\"滴滴出行打车\"、\"星巴克拿铁1杯\"），供用户在确认卡片中查看；若无法判断则省略该字段。" else ""}
+            ${inputContextPrompt(today, isOcrInput, isNotificationInput)}
         """.trimMargin()
+    }
+
+    /**
+     * 输入源附加上下文（OCR 截图 / 支付通知，ADR 0010 / ADR 0014）：
+     * 两者都是机读噪声文本，要求模型提取收支并给出简短备注；通知流额外注入交易时间作为账目日期参照。
+     */
+    private fun inputContextPrompt(today: LocalDate, isOcrInput: Boolean, isNotificationInput: Boolean): String {
+        if (!isOcrInput && !isNotificationInput) return ""
+        val source = if (isOcrInput) "支付截图的 OCR 文字" else "支付通知文本"
+        val noun = if (isOcrInput) "这笔消费" else "这笔收支"
+        val dateClause = if (isNotificationInput) {
+            "\n|这笔交易发生时间为 $today（${weekdayName(today.dayOfWeek)}），账目日期应记为此日期。"
+        } else ""
+        return "\n|以下输入来自$source，请从中提取收支信息。$dateClause\n|额外要求：在 JSON 中增加 \"note\" 字段，用一句不超过 20 字的中文描述$noun，需保留商品名称、数量、商家等关键信息（如\"打印纸5包\"、\"滴滴出行打车\"、\"星巴克拿铁1杯\"），供用户在确认卡片中查看；若无法判断则省略该字段。"
     }
 
     private fun weekdayName(day: DayOfWeek): String = when (day) {

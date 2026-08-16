@@ -6,8 +6,15 @@ import androidx.room.TypeConverters
 import com.cycling.beecount.domain.model.EntryType
 
 @Database(
-    entities = [EntryEntity::class, CategoryEntity::class, TagEntity::class, EntryTagEntity::class],
-    version = 2,
+    entities = [
+        EntryEntity::class,
+        CategoryEntity::class,
+        TagEntity::class,
+        EntryTagEntity::class,
+        PendingDraftEntity::class,
+        ProcessedNotificationEntity::class,
+    ],
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(LocalDateConverter::class)
@@ -15,6 +22,8 @@ abstract class BeeCountDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun categoryDao(): CategoryDao
     abstract fun tagDao(): TagDao
+    abstract fun pendingDraftDao(): PendingDraftDao
+    abstract fun processedNotificationDao(): ProcessedNotificationDao
 
     companion object {
         /** 预定义类别种子数据：只初始化一次，用户自定义类别在运行时创建 */
@@ -23,6 +32,7 @@ abstract class BeeCountDatabase : RoomDatabase() {
             CategoryEntity(name = "餐饮", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "交通", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "购物", type = EntryType.EXPENSE, isCustom = false),
+            CategoryEntity(name = "快递物流", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "居住", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "娱乐", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "医疗", type = EntryType.EXPENSE, isCustom = false),

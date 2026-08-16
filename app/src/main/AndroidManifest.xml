@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 自动记账确认提醒（API 33+ 运行时权限，ADR 0014） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
@@ -39,6 +41,33 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 收支速览桌面小组件（ADR 0013） -->
+        <receiver
+            android:name=".widget.OverviewWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/overview_widget_info" />
+        </receiver>
+
+        <!-- 自动记账通知监听（ADR 0014）：系统绑定，授权入口为系统通知使用权设置页。
+             exported 必须为 true：系统"通知使用权"列表经组件解析扫描候选服务，
+             exported=false 的服务不显示、无法授权；BIND_NOTIFICATION_LISTENER 为
+             signature|privileged 权限，只有系统能绑定，exported=true 无第三方绑定风险 -->
+        <service
+            android:name=".notification.PaymentNotificationListener"
+            android:exported="true"
+            android:label="@string/auto_entry_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

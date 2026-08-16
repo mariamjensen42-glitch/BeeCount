@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
+import com.cycling.beecount.notification.AutoEntryDeepLink
 import com.cycling.beecount.ui.analytics.AnalyticsRoute
 import com.cycling.beecount.ui.assistant.AssistantRoute
 import com.cycling.beecount.ui.calendar.CalendarRoute
@@ -61,11 +63,34 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
  * 常规宽度显示图标与文字；窄宽或字体放大时自动退化为四个等宽图标 tab，
  * 避免把正常手机上的导航整体缩小来迁就最窄屏幕。
  */
+/**
+ * 悬浮胶囊底部栏占用的屏幕高度（含底部 12dp 留白与胶囊自身高度）。
+ * 页面内 snackbar 等底部浮层需垫高到它上方，否则会被胶囊遮住；账本页内容 padding 同口径。
+ */
+internal val FLOATING_PILL_CLEARANCE = 84.dp
+
 @Composable
-fun BeeCountApp() {
+fun BeeCountApp(
+    deepLink: AutoEntryDeepLink? = null,
+    onDeepLinkConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // 自动记账确认/失败通知深链（ADR 0014）：跳助手页。
+    // 失败重试深链由输入框预填后经 onPrefillConsumed 消费（避免导航即清掉预填文本）；
+    // 确认深链无预填，导航后直接消费。
+    LaunchedEffect(deepLink) {
+        if (deepLink != null) {
+            navController.navigate("assistant") {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+            if (deepLink.retryText == null) onDeepLinkConsumed()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -73,7 +98,13 @@ fun BeeCountApp() {
             startDestination = "calendar",
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable("assistant") { AssistantRoute() }
+            composable("assistant") {
+                AssistantRoute(
+                    prefillText = deepLink?.retryText,
+                    openDraftId = deepLink?.draftId,
+                    onPrefillConsumed = onDeepLinkConsumed,
+                )
+            }
             composable(
                 route = "assistant/{prefillDate}",
                 arguments = listOf(navArgument("prefillDate") { type = NavType.StringType }),
