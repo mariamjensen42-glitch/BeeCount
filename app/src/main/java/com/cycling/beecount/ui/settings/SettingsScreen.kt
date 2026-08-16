@@ -140,7 +140,9 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                // 底部留出悬浮胶囊高度，最后一行（关于区）能滚到胶囊上方
+                .padding(bottom = FLOATING_PILL_CLEARANCE),
         ) {
             // 账户
             SettingsSectionHeader("账户")
