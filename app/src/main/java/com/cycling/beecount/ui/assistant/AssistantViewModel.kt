@@ -5,18 +5,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
-import com.cycling.beecount.domain.model.PendingDraft
-import com.cycling.beecount.domain.model.toAiParseResult
 import com.cycling.beecount.domain.usecase.ConfirmEntryUseCase
 import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
 import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
-import com.cycling.beecount.domain.usecase.ObservePendingDraftsUseCase
 import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ObserveTotalsOnUseCase
 import com.cycling.beecount.domain.usecase.OcrEntryUseCase
 import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
 import com.cycling.beecount.domain.usecase.ParseEntryUseCase
-import com.cycling.beecount.domain.usecase.RemovePendingDraftUseCase
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -40,8 +36,6 @@ class AssistantViewModel @Inject constructor(
     private val undoEntryUseCase: UndoEntryUseCase,
     private val ocrImageImportUseCase: OcrImageImportUseCase,
     private val ocrEntryUseCase: OcrEntryUseCase,
-    private val observePendingDrafts: ObservePendingDraftsUseCase,
-    private val removePendingDraft: RemovePendingDraftUseCase,
     observeEntriesOn: ObserveEntriesOnUseCase,
     observeTotalsOn: ObserveTotalsOnUseCase,
     observeCategories: ObserveCategoriesUseCase,
@@ -52,12 +46,6 @@ class AssistantViewModel @Inject constructor(
 
     /** 消息唯一 id 生成器（LazyColumn key 需稳定唯一） */
     private var nextMessageId = 0L
-
-    /** 当前确认卡片对应的待确认草稿 id（ADR 0014）：非空时卡片来自自动记账队列 */
-    private var displayedDraftId: Long? = null
-
-    /** 深链定位的草稿 id：点确认通知后优先展示这张卡片（ADR 0014，只生效一次） */
-    private var preferredDraftId: Long? = null
 
     private val _uiState = MutableStateFlow(AssistantUiState(today = today))
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
@@ -84,9 +72,6 @@ class AssistantViewModel @Inject constructor(
             observeTags().collect { tags ->
                 _uiState.update { it.copy(allTags = tags) }
             }
-        }
-        viewModelScope.launch {
-            observePendingDrafts().collect { drafts -> onPendingDraftsChanged(drafts) }
         }
     }
 
@@ -118,14 +103,12 @@ class AssistantViewModel @Inject constructor(
             is AssistantEvent.OcrImageSelected -> processOcrImage(event.uri)
             AssistantEvent.ShowCamera -> _uiState.update { it.copy(showCameraSheet = true) }
             AssistantEvent.DismissCamera -> _uiState.update { it.copy(showCameraSheet = false) }
-            is AssistantEvent.PreferDraft -> preferredDraftId = event.draftId
         }
     }
 
     private fun submitInput(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || _uiState.value.isParsing) return
-        releaseDisplayedDraft()
         _uiState.update { s ->
             s.copy(
                 messages = s.messages + AssistantMessage.User(newMessageId(), trimmed),
@@ -165,7 +148,6 @@ class AssistantViewModel @Inject constructor(
                         savedEntryDate = entry.date,
                     )
                 }
-                removeDisplayedDraft()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -186,67 +168,12 @@ class AssistantViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 待确认草稿队列变化（ADR 0014）：队首草稿在确认卡片槽空闲时展示。
-     * 当前草稿被移除（确认/拒绝）后自动展示下一张；手动输入/OCR 解析会先让出槽位（草稿回队列等待）。
-     */
-    private fun onPendingDraftsChanged(drafts: List<PendingDraft>) {
-        val displayed = displayedDraftId
-        if (drafts.isEmpty()) {
-            if (displayed != null) {
-                displayedDraftId = null
-                _uiState.update { it.copy(pendingResult = null, pendingOriginalText = "") }
-            }
-            return
-        }
-        if (displayed != null) {
-            // 当前草稿仍在队列 → 保持（可能是手动卡片覆盖了展示，不动）；已被移除 → 展示队首
-            if (drafts.none { it.id == displayed }) {
-                displayedDraftId = null
-                if (_uiState.value.pendingResult == null) showDraft(drafts.first())
-            }
-            return
-        }
-        if (_uiState.value.pendingResult == null) {
-            val target = preferredDraftId
-                ?.let { pid -> drafts.firstOrNull { it.id == pid } }
-                ?: drafts.first()
-            preferredDraftId = null
-            showDraft(target)
-        }
-    }
-
-    private fun showDraft(draft: PendingDraft) {
-        displayedDraftId = draft.id
-        _uiState.update { s ->
-            s.copy(
-                pendingResult = draft.toAiParseResult(),
-                // 卡片备注优先 AI 提炼的简短描述，否则回退支付通知原文
-                pendingOriginalText = draft.note?.takeIf { it.isNotBlank() } ?: draft.originalText,
-            )
-        }
-    }
-
-    /** 取消当前卡片：若来自草稿队列则一并移除（用户拒绝这笔草稿） */
     private fun dismissCard() {
-        removeDisplayedDraft()
         _uiState.update { it.copy(pendingResult = null, pendingOriginalText = "") }
-    }
-
-    /** 手动/OCR 解析接管卡片槽：正在展示的草稿让位回队列，不删除 */
-    private fun releaseDisplayedDraft() {
-        displayedDraftId = null
-    }
-
-    private fun removeDisplayedDraft() {
-        val id = displayedDraftId ?: return
-        displayedDraftId = null
-        viewModelScope.launch { removePendingDraft(id) }
     }
 
     private fun processOcrImage(uri: Uri) {
         if (_uiState.value.isParsing) return
-        releaseDisplayedDraft()
         _uiState.update { it.copy(isParsing = true) }
         viewModelScope.launch {
             try {
@@ -322,8 +249,6 @@ class AssistantViewModel @Inject constructor(
         when (outcome) {
             is ParseEntryUseCase.Outcome.Success -> {
                 val result = outcome.result
-                // 手动/OCR 解析结果接管卡片槽，草稿让位回队列（ADR 0014）
-                releaseDisplayedDraft()
                 _uiState.update { s ->
                     if (result.recordable) {
                         val targetDate = s.targetDate

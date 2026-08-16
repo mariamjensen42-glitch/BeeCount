@@ -1,11 +1,8 @@
 package com.cycling.beecount.ui.settings
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -58,7 +55,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
@@ -70,9 +66,6 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.AdjustmentsHorizontal
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowDownTray
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowUpTray
-import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Bell
-import com.woowla.compose.icon.collections.heroicons.heroicons.outline.BellAlert
-import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Bolt
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CpuChip
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.InformationCircle
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Key
@@ -110,22 +103,11 @@ fun SettingsScreen(
     var showTagDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showDemoConfirm by remember { mutableStateOf(false) }
-    var showKeepAliveDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val wechatImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) onEvent(SettingsEvent.ImportWeChatBill(uri))
-    }
-    // 确认提醒权限（API 33+，ADR 0014）：授权结果回来刷新状态，三步引导可能因此自动完成
-    val postNotificationsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { onEvent(SettingsEvent.RefreshAutoEntryPermissions) }
-
-    // 从系统"通知使用权"设置页返回时刷新授权状态（三步引导据此推进）
-    LifecycleResumeEffect(Unit) {
-        onEvent(SettingsEvent.RefreshAutoEntryPermissions)
-        onPauseOrDispose { }
     }
 
     androidx.compose.runtime.LaunchedEffect(uiState.transientMessage, uiState.transientError) {
@@ -194,40 +176,6 @@ fun SettingsScreen(
             )
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
-            // 自动记账（ADR 0014）
-            SettingsSectionHeader("自动记账")
-            SettingsSwitchRow(
-                title = "自动记账",
-                subtitle = "微信/支付宝支付后自动解析，通知确认后入库",
-                checked = uiState.autoEntryEnabled,
-                onCheckedChange = { onEvent(SettingsEvent.ToggleAutoEntry(it)) },
-            )
-            SettingsRow(
-                title = "通知监听",
-                subtitle = if (uiState.notificationListeningGranted) "已开启" else "未开启 · 点按去系统授权",
-                icon = Heroicons.Outline.Bell,
-                onClick = { openNotificationListenerSettings(context) },
-            )
-            if (Build.VERSION.SDK_INT >= 33) {
-                SettingsRow(
-                    title = "确认提醒",
-                    subtitle = if (uiState.postNotificationsGranted) "已开启" else "未开启 · 点按授权",
-                    icon = Heroicons.Outline.BellAlert,
-                    onClick = { postNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                )
-            }
-            SettingsRow(
-                title = "后台保活",
-                subtitle = "防止系统杀后台漏记，各品牌路径不同",
-                icon = Heroicons.Outline.Bolt,
-                onClick = { showKeepAliveDialog = true },
-            )
-            Text(
-                "支付成功后自动解析成待确认草稿，点通知即可确认；漏掉的支付可用截图记账补上。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
             // 管理
@@ -286,19 +234,6 @@ fun SettingsScreen(
             },
             onDismiss = { showKeyDialog = false },
         )
-    }
-    if (uiState.autoEntrySetupPending) {
-        AutoEntrySetupDialog(
-            nlsGranted = uiState.notificationListeningGranted,
-            postGranted = uiState.postNotificationsGranted,
-            showPostStep = Build.VERSION.SDK_INT >= 33,
-            onOpenNlsSettings = { openNotificationListenerSettings(context) },
-            onRequestPostNotifications = { postNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-            onDismiss = { onEvent(SettingsEvent.DismissAutoEntrySetup) },
-        )
-    }
-    if (showKeepAliveDialog) {
-        KeepAliveDialog(onDismiss = { showKeepAliveDialog = false })
     }
     if (showCategoryDialog) {
         CategoryManageDialog(
@@ -455,111 +390,6 @@ private fun SettingsSwitchRow(
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         },
     )
-}
-
-/**
- * 自动记账三步引导（ADR 0014）：通知监听授权（跳系统设置）+ 确认提醒权限（弹权限请求）。
- * 每步实时显示授权状态；两步齐后由 ViewModel 自动完成开启、对话框收起。
- */
-@Composable
-private fun AutoEntrySetupDialog(
-    nlsGranted: Boolean,
-    postGranted: Boolean,
-    showPostStep: Boolean,
-    onOpenNlsSettings: () -> Unit,
-    onRequestPostNotifications: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("开启自动记账需要两步授权") },
-        text = {
-            Column {
-                SetupStepRow(
-                    step = 1,
-                    title = "通知监听",
-                    description = "读取微信/支付宝的支付通知",
-                    done = nlsGranted,
-                    actionLabel = "去授权",
-                    onAction = onOpenNlsSettings,
-                )
-                if (showPostStep) {
-                    Spacer(Modifier.height(12.dp))
-                    SetupStepRow(
-                        step = 2,
-                        title = "确认提醒",
-                        description = "解析成功后通过通知提醒你确认",
-                        done = postGranted,
-                        actionLabel = "允许",
-                        onAction = onRequestPostNotifications,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("稍后再说") }
-        },
-    )
-}
-
-@Composable
-private fun SetupStepRow(
-    step: Int,
-    title: String,
-    description: String,
-    done: Boolean,
-    actionLabel: String,
-    onAction: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "$step. $title${if (done) "（已开启）" else ""}",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (!done) {
-            TextButton(onClick = onAction) { Text(actionLabel) }
-        }
-    }
-}
-
-/** 后台保活提示（ADR 0014）：各 OEM 电池白名单路径，防止 NLS 被杀漏记 */
-@Composable
-private fun KeepAliveDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("后台保活提示") },
-        text = {
-            Text(
-                "部分手机默认限制后台服务，可能导致收不到支付通知而漏记。建议把 BeeCount 加入电池白名单：\n\n" +
-                    "· 小米/红米：安全中心 → 应用管理 → 权限 → 自启动；设置 → 省电与电池 → 省电策略 → 无限制\n" +
-                    "· 华为：设置 → 应用 → 应用启动管理 → 关闭「自动管理」→ 允许自启动\n" +
-                    "· OPPO：设置 → 电池 → 更多设置 → 耗电管理 → 允许后台运行\n" +
-                    "· vivo：i管家 → 应用管理 → 权限管理 → 后台启动\n" +
-                    "· 荣耀：设置 → 应用 → 权限管理 → 允许自启动",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("知道了") }
-        },
-    )
-}
-
-/**
- * 打开通知监听授权页（ADR 0014）：系统"通知使用权"列表页。
- * 不用 ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS 详情直达——MIUI 等部分 OEM
- * 未实现该 Activity（打开即空白/无反应，用户实测）；列表页各厂商都有，且
- * exported=true 后应用必然出现在列表里。
- */
-private fun openNotificationListenerSettings(context: Context) {
-    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
 }
 
 @Composable

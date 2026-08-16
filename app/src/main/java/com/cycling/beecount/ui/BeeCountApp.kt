@@ -20,7 +20,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +36,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
-import com.cycling.beecount.notification.AutoEntryDeepLink
 import com.cycling.beecount.ui.analytics.AnalyticsRoute
 import com.cycling.beecount.ui.assistant.AssistantRoute
 import com.cycling.beecount.ui.calendar.CalendarRoute
@@ -70,27 +68,10 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
 internal val FLOATING_PILL_CLEARANCE = 84.dp
 
 @Composable
-fun BeeCountApp(
-    deepLink: AutoEntryDeepLink? = null,
-    onDeepLinkConsumed: () -> Unit = {},
-) {
+fun BeeCountApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-
-    // 自动记账确认/失败通知深链（ADR 0014）：跳助手页。
-    // 失败重试深链由输入框预填后经 onPrefillConsumed 消费（避免导航即清掉预填文本）；
-    // 确认深链无预填，导航后直接消费。
-    LaunchedEffect(deepLink) {
-        if (deepLink != null) {
-            navController.navigate("assistant") {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
-            if (deepLink.retryText == null) onDeepLinkConsumed()
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -98,13 +79,7 @@ fun BeeCountApp(
             startDestination = "calendar",
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable("assistant") {
-                AssistantRoute(
-                    prefillText = deepLink?.retryText,
-                    openDraftId = deepLink?.draftId,
-                    onPrefillConsumed = onDeepLinkConsumed,
-                )
-            }
+            composable("assistant") { AssistantRoute() }
             composable(
                 route = "assistant/{prefillDate}",
                 arguments = listOf(navArgument("prefillDate") { type = NavType.StringType }),
