@@ -129,7 +129,32 @@ fun AssistantScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text("AI 记账助手") })
+            TopAppBar(
+                title = { Text("AI 记账助手") },
+                // OCR 双入口放顶栏，输入行只留输入框与发送，避免一行四个元素拥挤
+                actions = {
+                    if (hasCameraHardware) {
+                        IconButton(onClick = { onEvent(AssistantEvent.ShowCamera) }) {
+                            Icon(
+                                imageVector = Heroicons.Outline.Camera,
+                                contentDescription = stringResource(R.string.cd_camera_capture),
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Heroicons.Outline.Photo,
+                            contentDescription = stringResource(R.string.cd_ocr_pick_image),
+                        )
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         Column(
@@ -204,17 +229,10 @@ fun AssistantScreen(
                 enabled = !uiState.isParsing,
                 targetDate = uiState.targetDate,
                 onSend = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
-                onPickImage = {
-                    imagePickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onOpenCamera = if (hasCameraHardware) {
-                    { onEvent(AssistantEvent.ShowCamera) }
-                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 64.dp),
+                    // 底部留白交给外层 Column 的 FLOATING_PILL_CLEARANCE，这里只留上下间距
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
             )
         }
     }
@@ -466,34 +484,10 @@ private fun InputBar(
     enabled: Boolean,
     targetDate: LocalDate?,
     onSend: (String) -> Unit,
-    onPickImage: () -> Unit,
-    onOpenCamera: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        if (onOpenCamera != null) {
-            IconButton(
-                onClick = onOpenCamera,
-                enabled = enabled,
-                colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
-            ) {
-                Icon(
-                    imageVector = Heroicons.Outline.Camera,
-                    contentDescription = stringResource(R.string.cd_camera_capture),
-                )
-            }
-        }
-        IconButton(
-            onClick = onPickImage,
-            enabled = enabled,
-            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
-        ) {
-            Icon(
-                imageVector = Heroicons.Outline.Photo,
-                contentDescription = stringResource(R.string.cd_ocr_pick_image),
-            )
-        }
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
