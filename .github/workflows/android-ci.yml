@@ -34,12 +34,26 @@ jobs:
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BEECOUNT_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/beecount-release.jks"
 
-      - name: Upload debug APK
+      - name: Build signed optimized release APK
+        env:
+          BEECOUNT_KEYSTORE_PATH: ${{ runner.temp }}/beecount-release.jks
+          BEECOUNT_STORE_PASSWORD: ${{ secrets.BEECOUNT_STORE_PASSWORD }}
+          BEECOUNT_KEY_ALIAS: ${{ secrets.BEECOUNT_KEY_ALIAS }}
+          BEECOUNT_KEY_PASSWORD: ${{ secrets.BEECOUNT_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload signed optimized release APK
         uses: actions/upload-artifact@v4
         with:
-          name: beecount-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: beecount-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
