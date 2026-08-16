@@ -56,14 +56,16 @@
         </receiver>
 
         <!-- 自动记账通知监听（ADR 0014）：系统绑定，授权入口为系统通知使用权设置页。
-             exported 必须为 true：系统"通知使用权"列表经组件解析扫描候选服务，
-             exported=false 的服务不显示、无法授权；BIND_NOTIFICATION_LISTENER 为
-             signature|privileged 权限，只有系统能绑定，exported=true 无第三方绑定风险 -->
+             permission 必须是 BIND_NOTIFICATION_LISTENER_SERVICE（带 SERVICE 后缀），
+             这是 NotificationListenerService 对应的标准系统权限；系统的"通知使用权"
+             列表页按此权限名收集候选服务。无 _SERVICE 后缀的 BIND_NOTIFICATION_LISTENER
+             是错写，候选扫描不会包含本服务（ADR 0016）。该权限为 signature 级，仅
+             系统能绑定，exported=true 无第三方绑定风险。 -->
         <service
             android:name=".notification.PaymentNotificationListener"
             android:exported="true"
             android:label="@string/auto_entry_listener_label"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER">
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
