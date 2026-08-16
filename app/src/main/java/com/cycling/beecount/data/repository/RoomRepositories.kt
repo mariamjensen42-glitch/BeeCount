@@ -8,12 +8,15 @@ import com.cycling.beecount.data.local.TagDao
 import com.cycling.beecount.data.local.TagEntity
 import com.cycling.beecount.data.local.toDomain
 import com.cycling.beecount.data.local.toEntity
+import com.cycling.beecount.data.local.toLocal
+import com.cycling.beecount.data.local.toSnapshotRow
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
+import com.cycling.beecount.domain.repository.EntrySnapshot
 import com.cycling.beecount.domain.repository.TagRepository
 import com.cycling.beecount.domain.repository.TodayTotals
 import java.time.LocalDate
@@ -47,6 +50,13 @@ class RoomEntryRepository @Inject constructor(
 
     override suspend fun delete(id: Long) {
         entryDao.deleteById(id)
+    }
+
+    override suspend fun deleteWithSnapshot(id: Long): EntrySnapshot? =
+        entryDao.deleteWithSnapshot(id)?.toDomain()
+
+    override suspend fun restoreSnapshot(snapshot: EntrySnapshot) {
+        entryDao.restoreSnapshot(snapshot.toLocal())
     }
 
     override suspend fun replaceAll(entries: List<Entry>) {

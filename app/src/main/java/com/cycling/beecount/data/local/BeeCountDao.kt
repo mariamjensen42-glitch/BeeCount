@@ -9,6 +9,7 @@ import androidx.room.Relation
 import androidx.room.Transaction
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.repository.EntrySnapshot
 import com.cycling.beecount.domain.repository.TodayTotals
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -16,8 +17,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface EntryDao {
 
+    @Transaction
     @Query("SELECT * FROM entries WHERE date = :date ORDER BY createdAt DESC")
-    fun observeEntriesOn(date: LocalDate): Flow<List<EntryEntity>>
+    fun observeEntriesOn(date: LocalDate): Flow<List<EntryWithTags>>
 
     @Query(
         """
@@ -61,6 +63,28 @@ interface EntryDao {
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Transaction
+    suspend fun deleteWithSnapshot(id: Long): EntrySnapshotRow? {
+        val entry = findWithTagsById(id) ?: return null
+        deleteById(id)
+        return entry.toSnapshotRow()
+    }
+
+    @Transaction
+    suspend fun restoreSnapshot(snapshot: EntrySnapshotRow) {
+        insert(snapshot.entry)
+        existingTagIds(snapshot.tagIds).forEach { tagId ->
+            insertEntryTag(EntryTagEntity(entryId = snapshot.entry.id, tagId = tagId))
+        }
+    }
+
+    @Query("SELECT id FROM tags WHERE id IN (:tagIds)")
+    suspend fun existingTagIds(tagIds: List<Long>): List<Long>
+
+    @Transaction
+    @Query("SELECT * FROM entries WHERE id = :id")
+    suspend fun findWithTagsById(id: Long): EntryWithTags?
+
     /** 原子替换所有账目，供演示数据等完整数据集使用。 */
     @Transaction
     suspend fun replaceAll(entries: List<EntryEntity>) {
@@ -96,6 +120,39 @@ data class EntryWithTags(
         ),
     )
     val tags: List<TagEntity>,
+)
+
+data class EntrySnapshotRow(
+    val entry: EntryEntity,
+    val tags: List<TagEntity>,
+    val tagIds: List<Long>,
+)
+
+fun EntryWithTags.toSnapshotRow(): EntrySnapshotRow = EntrySnapshotRow(
+    entry = entry,
+    tags = tags,
+    tagIds = tags.map { it.id },
+)
+
+fun EntrySnapshotRow.toDomain(): EntrySnapshot = EntrySnapshot(
+    entry = Entry(
+        id = entry.id,
+        type = entry.type,
+        amount = entry.amount,
+        amountRaw = entry.amountRaw,
+        categoryName = entry.categoryName,
+        date = entry.date,
+        note = entry.note,
+        createdAt = entry.createdAt,
+        tags = tags.map { it.toDomain() },
+    ),
+    tagIds = tagIds,
+)
+
+fun EntrySnapshot.toLocal(): EntrySnapshotRow = EntrySnapshotRow(
+    entry = entry.toEntity(),
+    tags = entry.tags.map { it.toEntity() },
+    tagIds = tagIds,
 )
 
 fun EntryWithTags.toDomain(): Entry = Entry(

@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,13 +66,25 @@ import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun AssistantRoute(
+    prefillDate: LocalDate? = null,
+    onEntrySaved: (LocalDate) -> Unit = {},
     viewModel: AssistantViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(prefillDate) {
+        viewModel.onEvent(AssistantEvent.SetTargetDate(prefillDate))
+    }
+    LaunchedEffect(uiState.savedEntryDate) {
+        uiState.savedEntryDate?.let {
+            viewModel.onEvent(AssistantEvent.ConsumeSavedEntryDate)
+            if (prefillDate != null) onEntrySaved(it)
+        }
+    }
     AssistantScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
@@ -162,6 +175,7 @@ fun AssistantScreen(
                             onAmountChange = { amount -> onEvent(AssistantEvent.EditAmount(amount)) },
                             onCategoryChange = { name -> onEvent(AssistantEvent.EditCategory(name)) },
                             onTagsChange = { tags -> onEvent(AssistantEvent.EditTags(tags)) },
+                            onDateChange = { date -> onEvent(AssistantEvent.EditDate(date)) },
                             onConfirm = { onEvent(AssistantEvent.Confirm) },
                             onDismiss = { onEvent(AssistantEvent.DismissCard) },
                         )
@@ -184,6 +198,7 @@ fun AssistantScreen(
 
             InputBar(
                 enabled = !uiState.isParsing,
+                targetDate = uiState.targetDate,
                 onSend = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
                 onPickImage = {
                     imagePickerLauncher.launch(
@@ -433,6 +448,7 @@ private fun SavedRow(entry: Entry, onUndo: (Long) -> Unit) {
 @Composable
 private fun InputBar(
     enabled: Boolean,
+    targetDate: LocalDate?,
     onSend: (String) -> Unit,
     onPickImage: () -> Unit,
     onOpenCamera: (() -> Unit)?,
@@ -465,6 +481,7 @@ private fun InputBar(
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
+            label = targetDate?.let { date -> { Text("本次记入：${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}") } },
             placeholder = { Text("例如：昨天打车花了30块") },
             singleLine = true,
             enabled = enabled,

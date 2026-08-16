@@ -1,6 +1,7 @@
 package com.cycling.beecount.ui.assistant
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +16,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,14 +42,16 @@ import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.Tag
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
  * 确认卡片：展示 AI 草拟的账目，金额/类别/标签可编辑（Q17 + ADR 0007），
- * 类别选择支持输入新类别名（确认卡片内创建，Q13），日期/备注只读。
+ * 类别选择支持输入新类别名（确认卡片内创建，Q13），日期可编辑。
  * [originalText] 为用户原话，作为备注展示（Q16：原文保留）。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ConfirmationCard(
     result: AiParseResult,
@@ -53,6 +61,7 @@ fun ConfirmationCard(
     onAmountChange: (Double) -> Unit,
     onCategoryChange: (String) -> Unit,
     onTagsChange: (List<String>) -> Unit,
+    onDateChange: (LocalDate) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -65,6 +74,34 @@ fun ConfirmationCard(
     }
     var categoryText by remember {
         mutableStateOf(result.categoryName.orEmpty())
+    }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = result.date?.toUtcMillis(),
+        selectableDates = PastAndPresentDates(today),
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { selectedDateMillis ->
+                            onDateChange(LocalDate.ofEpochDay(selectedDateMillis / MILLIS_PER_DAY))
+                        }
+                        showDatePicker = false
+                    },
+                    enabled = datePickerState.selectedDateMillis != null,
+                ) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
     Card(modifier = modifier.fillMaxWidth()) {
@@ -179,7 +216,7 @@ fun ConfirmationCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // 只读字段：金额原文、日期、备注
+            // 只读字段：金额原文、备注
             Text(
                 text = "金额原文：${result.amountRaw.orEmpty()}",
                 style = MaterialTheme.typography.bodyMedium,
@@ -188,7 +225,8 @@ fun ConfirmationCard(
             Text(
                 text = "日期：${result.date?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "—"}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { showDatePicker = true },
             )
             Text(
                 text = "备注：$originalText",
@@ -210,3 +248,16 @@ fun ConfirmationCard(
     }
 }
 
+private const val MILLIS_PER_DAY = 86_400_000L
+
+private fun LocalDate.toUtcMillis(): Long =
+    atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+private class PastAndPresentDates(
+    private val latestDate: LocalDate,
+) : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+        LocalDate.ofEpochDay(utcTimeMillis / MILLIS_PER_DAY) <= latestDate
+
+    override fun isSelectableYear(year: Int): Boolean = year <= latestDate.year
+}

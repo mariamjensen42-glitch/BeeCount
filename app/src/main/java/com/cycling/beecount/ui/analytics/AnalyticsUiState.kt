@@ -40,6 +40,8 @@ sealed interface AnalyticsEvent {
 
     data object GoToCurrentYear : AnalyticsEvent
 
+    data class SetMonth(val month: YearMonth) : AnalyticsEvent
+
     data class SelectHeatmapMetric(val metric: HeatmapMetric) : AnalyticsEvent
 
     data class SelectHeatmapDate(val date: java.time.LocalDate) : AnalyticsEvent

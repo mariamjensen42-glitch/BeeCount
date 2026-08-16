@@ -84,6 +84,15 @@ class AssistantViewModel @Inject constructor(
             is AssistantEvent.EditTags ->
                 _uiState.update { s -> s.copy(pendingResult = s.pendingResult?.copy(tags = event.tags)) }
 
+            is AssistantEvent.SetTargetDate ->
+                _uiState.update { s -> s.copy(targetDate = event.date) }
+
+            is AssistantEvent.EditDate ->
+                _uiState.update { s -> s.copy(pendingResult = s.pendingResult?.copy(date = event.date)) }
+
+            AssistantEvent.ConsumeSavedEntryDate ->
+                _uiState.update { s -> s.copy(savedEntryDate = null) }
+
             AssistantEvent.Confirm -> confirm()
             AssistantEvent.DismissCard ->
                 _uiState.update { it.copy(pendingResult = null, pendingOriginalText = "") }
@@ -134,6 +143,8 @@ class AssistantViewModel @Inject constructor(
                         messages = s.messages + AssistantMessage.Saved(newMessageId(), entry),
                         pendingResult = null,
                         pendingOriginalText = "",
+                        targetDate = null,
+                        savedEntryDate = entry.date,
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -207,7 +218,11 @@ class AssistantViewModel @Inject constructor(
                 val result = outcome.result
                 _uiState.update { s ->
                     if (result.recordable) {
-                        s.copy(pendingResult = result, pendingOriginalText = originalText)
+                        val targetDate = s.targetDate
+                        s.copy(
+                            pendingResult = if (targetDate != null) result.copy(date = targetDate) else result,
+                            pendingOriginalText = originalText,
+                        )
                     } else {
                         s.copy(
                             messages = s.messages + AssistantMessage.Assistant(

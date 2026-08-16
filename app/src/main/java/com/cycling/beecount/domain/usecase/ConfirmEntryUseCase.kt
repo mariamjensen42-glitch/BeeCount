@@ -34,6 +34,7 @@ class ConfirmEntryUseCase @Inject constructor(
         require(result.recordable) { "recordable=false 的结果不能入库" }
         val type = requireNotNull(result.type) { "账目类型缺失" }
         val date = requireNotNull(result.date) { "账目日期缺失" }
+        require(!date.isAfter(java.time.LocalDate.now())) { "账目日期不能晚于今天" }
         val amountRaw = requireNotNull(result.amountRaw) { "金额原文缺失" }
 
         val categoryName = editedCategoryName.trim()

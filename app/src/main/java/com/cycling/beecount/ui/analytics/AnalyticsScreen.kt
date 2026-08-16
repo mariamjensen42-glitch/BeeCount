@@ -71,6 +71,7 @@ import com.woowla.compose.icon.collections.heroicons.*
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronLeft
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronRight
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowLeft
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Year
@@ -78,15 +79,21 @@ import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
 
 @Composable
-fun AnalyticsRoute(viewModel: AnalyticsViewModel = hiltViewModel()) {
+fun AnalyticsRoute(
+    initialMonth: YearMonth,
+    onBack: () -> Unit,
+    viewModel: AnalyticsViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val monthly by viewModel.monthlyAnalytics.collectAsStateWithLifecycle()
     val annual by viewModel.annualAnalytics.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(initialMonth) { viewModel.onEvent(AnalyticsEvent.SetMonth(initialMonth)) }
     AnalyticsScreen(
         uiState = uiState,
         monthly = monthly,
         annual = annual,
         onEvent = viewModel::onEvent,
+        onBack = onBack,
     )
 }
 
@@ -102,11 +109,19 @@ fun AnalyticsScreen(
     monthly: MonthlyAnalytics?,
     annual: AnnualAnalytics?,
     onEvent: (AnalyticsEvent) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text("图表") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("图表") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Heroicons.Outline.ArrowLeft, contentDescription = "返回日历") }
+                },
+            )
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -284,14 +299,7 @@ private fun AnnualContent(
         } else if (data.entryCount == 0) {
             item { EmptyState("这一年还没有账目，去「今日」记一笔吧") }
             item {
-                AnnualHeatmapCard(
-                    year = data.year,
-                    days = data.dailyHeatmap,
-                    metric = uiState.heatmapMetric,
-                    selectedDate = uiState.selectedHeatmapDate,
-                    onMetricSelected = { onEvent(AnalyticsEvent.SelectHeatmapMetric(it)) },
-                    onDateSelected = { onEvent(AnalyticsEvent.SelectHeatmapDate(it)) },
-                )
+                AnnualHeatmapCard(data.year, data.dailyHeatmap)
             }
         } else {
             item { TotalsCard(data.expense, data.income, data.entryCount) }
@@ -300,14 +308,7 @@ private fun AnnualContent(
             }
             item { YearTrendCard(data.monthlyExpense) }
             item {
-                AnnualHeatmapCard(
-                    year = data.year,
-                    days = data.dailyHeatmap,
-                    metric = uiState.heatmapMetric,
-                    selectedDate = uiState.selectedHeatmapDate,
-                    onMetricSelected = { onEvent(AnalyticsEvent.SelectHeatmapMetric(it)) },
-                    onDateSelected = { onEvent(AnalyticsEvent.SelectHeatmapDate(it)) },
-                )
+                AnnualHeatmapCard(data.year, data.dailyHeatmap)
             }
             item { HighlightsCard(data.entryCount, data.highlights) }
         }
@@ -586,31 +587,14 @@ private fun YearTrendCard(monthly: List<MonthlyExpensePoint>) {
     }
 }
 
-/** 年度热力图：周列横向滚动，日期格外提供 48dp 触控区域。 */
+/** 年度热力图：只读展示全年每日支出强度。 */
 @Composable
-private fun AnnualHeatmapCard(
-    year: Int,
-    days: List<AnnualHeatmapDay>,
-    metric: HeatmapMetric,
-    selectedDate: LocalDate?,
-    onMetricSelected: (HeatmapMetric) -> Unit,
-    onDateSelected: (LocalDate) -> Unit,
-) {
+private fun AnnualHeatmapCard(year: Int, days: List<AnnualHeatmapDay>) {
     val first = LocalDate.of(year, 1, 1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val last = LocalDate.of(year, 12, 31).with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
     val weeks = ((last.toEpochDay() - first.toEpochDay()) / 7 + 1).toInt()
-    val dayByDate = remember(days) { days.associateBy { it.date } }
-    val today = LocalDate.now()
-    val nonZero = days.mapNotNull { metricValue(it, metric).takeIf { value -> value > 0f } }.sorted()
-    val selected = selectedDate?.let(dayByDate::get)
-        ?: days.firstOrNull { it.date == today && it.date.year == year }
-        ?: days.asReversed().firstOrNull { it.hasEntries }
-        ?: days.firstOrNull()
-    val selectedWeek = selected?.let { (it.date.toEpochDay() - first.toEpochDay()).toInt() / 7 } ?: 0
-    val gridScrollState = rememberScrollState()
-    LaunchedEffect(selected?.date, first) {
-        gridScrollState.scrollTo((selectedWeek * 17).coerceAtLeast(0))
-    }
+    val expenseByDate = remember(days) { days.associateBy { it.date } }
+    val nonZero = days.map { it.expense.toFloat() }.filter { it > 0f }.sorted()
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -619,40 +603,16 @@ private fun AnnualHeatmapCard(
             Text("年度热力图", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                HeatmapMetric.values().forEach { option ->
-                    GranularitySegment(
-                        label = option.label,
-                        selected = metric == option,
-                        onClick = { onMetricSelected(option) },
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(gridScrollState)
-                    .padding(bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 4.dp),
             ) {
                 Column {
                     Row(Modifier.padding(start = 28.dp)) {
                         repeat(weeks) { week ->
                             val date = first.plusDays(week * 7L)
                             val monthLabel = (1..12).firstOrNull { month ->
-                                YearMonth.of(year, month).atDay(1)
-                                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) == date
+                                YearMonth.of(year, month).atDay(1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) == date
                             }
-                            Text(
-                                text = monthLabel?.let { "${it}月" } ?: "",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(17.dp),
-                            )
+                            Text(monthLabel?.let { "${it}月" } ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(17.dp))
                         }
                     }
                     Row {
@@ -664,21 +624,11 @@ private fun AnnualHeatmapCard(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                             repeat(weeks) { week ->
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                                ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     repeat(7) { dayIndex ->
-                                        val date = first.plusDays((week * 7 + dayIndex).toLong())
-                                        val item = dayByDate[date]
-                                        val enabled = date.year == year && !(year == today.year && date > today)
-                                        HeatmapCell(
-                                            day = item,
-                                            metric = metric,
-                                            level = item?.let { heatmapLevel(metricValue(it, metric), metric, nonZero) } ?: 0,
-                                            selected = selected?.date == date,
-                                            enabled = enabled,
-                                            onClick = { onDateSelected(date) },
-                                        )
+                                        val item = expenseByDate[first.plusDays((week * 7 + dayIndex).toLong())]
+                                        val level = item?.let { expenseHeatmapLevel(it.expense.toFloat(), nonZero) } ?: 0
+                                        Box(Modifier.width(14.dp).height(14.dp).clip(RoundedCornerShape(3.dp)).background(ExpenseRed.copy(alpha = listOf(0f, .24f, .45f, .7f, 1f)[level])))
                                     }
                                 }
                             }
@@ -686,97 +636,19 @@ private fun AnnualHeatmapCard(
                     }
                 }
             }
-            HeatmapLegend(metric)
-            selected?.let { HeatmapSummary(it, metric) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("少", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(.18f, .4f, .65f, 1f).forEach { alpha -> Box(Modifier.width(14.dp).height(14.dp).clip(RoundedCornerShape(3.dp)).background(ExpenseRed.copy(alpha))) }
+                Text("多", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
 
-private fun metricValue(day: AnnualHeatmapDay, metric: HeatmapMetric): Float = when (metric) {
-    HeatmapMetric.EXPENSE -> day.expense.toFloat()
-    HeatmapMetric.ENTRY_COUNT -> day.entryCount.toFloat()
-    HeatmapMetric.ACTIVE_DAY -> if (day.hasEntries) 1f else 0f
-}
-
-private fun heatmapLevel(value: Float, metric: HeatmapMetric, nonZero: List<Float>): Int {
+private fun expenseHeatmapLevel(value: Float, nonZero: List<Float>): Int {
     if (value <= 0f) return 0
-    if (metric == HeatmapMetric.ACTIVE_DAY) return 4
     val rank = nonZero.indexOfLast { it <= value }.coerceAtLeast(0)
     return (rank * 4 / nonZero.size + 1).coerceIn(1, 4)
-}
-
-@Composable
-private fun HeatmapCell(day: AnnualHeatmapDay?, metric: HeatmapMetric, level: Int, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val base = when (metric) {
-        HeatmapMetric.EXPENSE -> ExpenseRed
-        HeatmapMetric.ENTRY_COUNT -> HoneyAmber
-        HeatmapMetric.ACTIVE_DAY -> IncomeGreen
-    }
-    val color = if (day == null || !enabled) Color.Transparent else base.copy(alpha = listOf(0f, .24f, .45f, .7f, 1f)[level])
-    Box(
-        modifier = Modifier
-            .width(14.dp)
-            .height(14.dp)
-            .semantics {
-                contentDescription = day?.let {
-                    "${it.date}，支出 ${formatMoney(it.expense)} 元，${it.entryCount} 笔，${if (it.hasEntries) "已记账" else "未记账"}"
-                } ?: "年外日期"
-            }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(14.dp)
-                .height(14.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(color)
-                .then(if (selected && enabled) Modifier.border(1.5.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(3.dp)) else Modifier),
-        )
-    }
-}
-
-@Composable
-private fun HeatmapLegend(metric: HeatmapMetric) {
-    val color = when (metric) {
-        HeatmapMetric.EXPENSE -> ExpenseRed
-        HeatmapMetric.ENTRY_COUNT -> HoneyAmber
-        HeatmapMetric.ACTIVE_DAY -> IncomeGreen
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(if (metric == HeatmapMetric.ACTIVE_DAY) "无" else "少", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val alphas = if (metric == HeatmapMetric.ACTIVE_DAY) listOf(.18f, 1f) else listOf(.18f, .4f, .65f, 1f)
-        alphas.forEach { alpha -> Box(Modifier.width(14.dp).height(14.dp).clip(RoundedCornerShape(3.dp)).background(color.copy(alpha))) }
-        Text(if (metric == HeatmapMetric.ACTIVE_DAY) "有" else "多", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun HeatmapSummary(day: AnnualHeatmapDay, metric: HeatmapMetric) {
-    Spacer(Modifier.height(8.dp))
-    val emphasis = when (metric) {
-        HeatmapMetric.EXPENSE -> "支出 ¥${formatMoney(day.expense)}"
-        HeatmapMetric.ENTRY_COUNT -> "${day.entryCount} 笔"
-        HeatmapMetric.ACTIVE_DAY -> if (day.hasEntries) "已记账" else "无账目"
-    }
-    val prefix = "${day.date.year}年${day.date.monthValue}月${day.date.dayOfMonth}日 · "
-    val suffix = when (metric) {
-        HeatmapMetric.EXPENSE -> " · ${day.entryCount} 笔${if (day.hasEntries) " · 已记账" else " · 无账目"}"
-        HeatmapMetric.ENTRY_COUNT -> " · 支出 ¥${formatMoney(day.expense)}${if (day.hasEntries) " · 已记账" else " · 无账目"}"
-        HeatmapMetric.ACTIVE_DAY -> " · 支出 ¥${formatMoney(day.expense)} · ${day.entryCount} 笔"
-    }
-    Text(
-        text = buildAnnotatedString {
-            append(prefix)
-            withStyle(SpanStyle(color = when (metric) {
-                HeatmapMetric.EXPENSE -> ExpenseRed
-                HeatmapMetric.ENTRY_COUNT -> HoneyAmber
-                HeatmapMetric.ACTIVE_DAY -> IncomeGreen
-            })) { append(emphasis) }
-            append(suffix)
-        },
-        style = MaterialTheme.typography.bodySmall,
-    )
 }
 
 @Composable

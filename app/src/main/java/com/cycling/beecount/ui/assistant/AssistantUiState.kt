@@ -18,6 +18,9 @@ data class AssistantUiState(
     val messages: List<AssistantMessage> = emptyList(),
     val pendingResult: AiParseResult? = null,
     val pendingOriginalText: String = "",
+    val targetDate: LocalDate? = null,
+    /** 确认入库成功后的单次日期通知 */
+    val savedEntryDate: LocalDate? = null,
     val categories: List<Category> = emptyList(),
     val allTags: List<Tag> = emptyList(),
     val todayEntries: List<Entry> = emptyList(),
@@ -60,6 +63,15 @@ sealed interface AssistantEvent {
 
     /** 确认卡片上修改标签选择（整体替换） */
     data class EditTags(val tags: List<String>) : AssistantEvent
+
+    /** 设置本次记账目标日期 */
+    data class SetTargetDate(val date: LocalDate?) : AssistantEvent
+
+    /** 确认卡片上修改日期 */
+    data class EditDate(val date: LocalDate) : AssistantEvent
+
+    /** 消费保存成功通知，避免重组重复回调 */
+    data object ConsumeSavedEntryDate : AssistantEvent
 
     /** 确认入库 */
     data object Confirm : AssistantEvent

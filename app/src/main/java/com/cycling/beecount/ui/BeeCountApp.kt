@@ -33,9 +33,12 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import com.cycling.beecount.ui.analytics.AnalyticsRoute
 import com.cycling.beecount.ui.assistant.AssistantRoute
+import com.cycling.beecount.ui.calendar.CalendarRoute
 import com.cycling.beecount.ui.ledger.LedgerRoute
 import com.cycling.beecount.ui.settings.SettingsRoute
 import com.cycling.beecount.ui.theme.HoneyAmber
@@ -67,25 +70,50 @@ fun BeeCountApp() {
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = "assistant",
+            startDestination = "calendar",
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("assistant") { AssistantRoute() }
+            composable(
+                route = "assistant/{prefillDate}",
+                arguments = listOf(navArgument("prefillDate") { type = NavType.StringType }),
+            ) { entry ->
+                AssistantRoute(
+                    prefillDate = java.time.LocalDate.parse(requireNotNull(entry.arguments?.getString("prefillDate"))),
+                    onEntrySaved = { navController.popBackStack("calendar", inclusive = false) },
+                )
+            }
             composable("ledger") { LedgerRoute() }
             composable("settings") { SettingsRoute() }
-            composable("analytics") { AnalyticsRoute() }
+            composable("calendar") {
+                CalendarRoute(
+                    onOpenAnalytics = { month -> navController.navigate("analytics/$month") },
+                    onAddEntry = { date -> navController.navigate("assistant/$date") },
+                )
+            }
+            composable(
+                route = "analytics/{month}",
+                arguments = listOf(navArgument("month") { type = NavType.StringType }),
+            ) {
+                AnalyticsRoute(
+                    initialMonth = java.time.YearMonth.parse(requireNotNull(it.arguments?.getString("month"))),
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
-        FloatingPillBar(
-            currentRoute = currentRoute,
-            onNavigate = { route ->
-                navController.navigate(route) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
+        if (currentRoute in setOf("assistant", "ledger", "settings", "calendar")) {
+            FloatingPillBar(
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
     }
 }
 
@@ -156,12 +184,12 @@ private fun FloatingPillBar(
             )
             PillTab(
                 modifier = Modifier.weight(1f),
-                label = "图表",
-                selected = currentRoute == "analytics",
-                outlineIcon = Heroicons.Outline.ChartBar,
-                solidIcon = Heroicons.Solid.ChartBar,
+                label = "日历",
+                selected = currentRoute == "calendar",
+                outlineIcon = Heroicons.Outline.CalendarDays,
+                solidIcon = Heroicons.Solid.CalendarDays,
                 showLabel = showLabels,
-                onClick = { onNavigate("analytics") },
+                onClick = { onNavigate("calendar") },
             )
         }
     }

@@ -89,6 +89,9 @@ class AnalyticsViewModel @Inject constructor(
                     state.copy(selectedYear = Year.now().value, selectedHeatmapDate = null)
                 }
 
+            is AnalyticsEvent.SetMonth ->
+                _uiState.update { state -> state.copy(selectedMonth = event.month, selectedYear = event.month.year) }
+
             is AnalyticsEvent.SelectHeatmapMetric ->
                 _uiState.update { state -> state.copy(heatmapMetric = event.metric) }
 
