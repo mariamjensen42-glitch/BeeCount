@@ -194,7 +194,7 @@ fun SettingsScreen(
             // 关于
             SettingsSectionHeader("关于")
             SettingsRow("版本", subtitle = appVersionName(context))
-            SettingsRow("字体", subtitle = "霞鹜文楷 / 得意黑（SIL OFL 1.1）")
+            SettingsRow("字体", subtitle = "霞鹜文楷 Lite（SIL OFL 1.1）")
             SettingsRow("AI 模型", subtitle = "DeepSeek · deepseek-v4-flash")
         }
     }
