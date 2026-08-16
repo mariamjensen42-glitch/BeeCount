@@ -8,6 +8,11 @@ plugins {
 
 android {
     namespace = "com.cycling.beecount"
+    val releaseKeystorePath = providers.environmentVariable("BEECOUNT_KEYSTORE_PATH").orNull
+    val releaseStorePassword = providers.environmentVariable("BEECOUNT_STORE_PASSWORD").orNull
+    val releaseKeyAlias = providers.environmentVariable("BEECOUNT_KEY_ALIAS").orNull
+    val releaseKeyPassword = providers.environmentVariable("BEECOUNT_KEY_PASSWORD").orNull
+
     compileSdk {
         version = release(37) {
             minorApiLevel = 1
@@ -18,16 +23,24 @@ android {
         applicationId = "com.cycling.beecount"
         minSdk = 31
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "0.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            if (releaseKeystorePath != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
+                signingConfig = signingConfigs.create("releaseFromEnvironment") {
+                    storeFile = file(releaseKeystorePath)
+                    storePassword = releaseStorePassword
+                    keyAlias = releaseKeyAlias
+                    keyPassword = releaseKeyPassword
+                }
+            }
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
