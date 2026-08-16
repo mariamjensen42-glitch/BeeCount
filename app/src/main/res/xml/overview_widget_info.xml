@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 收支速览小组件：默认 2×1，可横向/纵向拉伸到 4×2（ADR 0013） -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/widget_label"
     android:description="@string/widget_description"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="110dp"
