@@ -7,7 +7,7 @@ import com.cycling.beecount.domain.model.EntryType
 
 @Database(
     entities = [EntryEntity::class, CategoryEntity::class, TagEntity::class, EntryTagEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(LocalDateConverter::class)

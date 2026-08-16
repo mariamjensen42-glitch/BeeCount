@@ -1,12 +1,20 @@
 package com.cycling.beecount.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import java.time.LocalDate
 
-@Entity(tableName = "entries")
+/**
+ * 账目表。[sourceRef] 为来源引用（ADR 0012）：微信导入的账目记录交易单号，
+ * 可空唯一索引（SQLite 对多个 NULL 不冲突），导入去重与批量撤销都依赖它。
+ */
+@Entity(
+    tableName = "entries",
+    indices = [Index(value = ["sourceRef"], unique = true)],
+)
 data class EntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val type: EntryType,
@@ -16,6 +24,7 @@ data class EntryEntity(
     val date: LocalDate,
     val note: String,
     val createdAt: Long,
+    val sourceRef: String? = null,
 )
 
 fun EntryEntity.toDomain(): Entry = Entry(
@@ -27,6 +36,7 @@ fun EntryEntity.toDomain(): Entry = Entry(
     date = date,
     note = note,
     createdAt = createdAt,
+    sourceRef = sourceRef,
 )
 
 fun Entry.toEntity(): EntryEntity = EntryEntity(
@@ -38,4 +48,5 @@ fun Entry.toEntity(): EntryEntity = EntryEntity(
     date = date,
     note = note,
     createdAt = createdAt,
+    sourceRef = sourceRef,
 )

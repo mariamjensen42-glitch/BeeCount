@@ -360,11 +360,23 @@ private fun SummaryEntryRow(entry: Entry) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
-        )
+        when (entry.type) {
+            EntryType.EXPENSE -> Text(
+                text = "-¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ExpenseRed,
+            )
+            EntryType.INCOME -> Text(
+                text = "+¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IncomeGreen,
+            )
+            EntryType.NEUTRAL -> Text(
+                text = "¥${formatMoney(entry.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

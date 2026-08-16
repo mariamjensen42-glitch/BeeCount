@@ -3,6 +3,8 @@ package com.cycling.beecount.ui.settings
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -26,13 +29,16 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +53,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.usecase.WeChatImportPreview
 import com.cycling.beecount.ui.common.TagManageSheet
 import java.io.File
 import java.time.LocalDate
@@ -79,6 +86,11 @@ fun SettingsScreen(
     var showClearConfirm by remember { mutableStateOf(false) }
     var showDemoConfirm by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val wechatImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) onEvent(SettingsEvent.ImportWeChatBill(uri))
+    }
 
     androidx.compose.runtime.LaunchedEffect(uiState.transientMessage, uiState.transientError) {
         val message = uiState.transientMessage ?: uiState.transientError
@@ -88,6 +100,28 @@ fun SettingsScreen(
                 if (uiState.transientMessage != null) SettingsEvent.DismissMessage else SettingsEvent.DismissError,
             )
         }
+    }
+
+    // 导入完成后的撤销窗口（30 秒，ADR 0012）：snackbar 常驻带「撤销」，
+    // 窗口过期或已撤销时由 pendingWeChatUndo 置空触发收起
+    LaunchedEffect(uiState.pendingWeChatUndo) {
+        val undo = uiState.pendingWeChatUndo
+        if (undo != null) {
+            val message = if (undo.duplicates > 0) {
+                "已导入 ${undo.imported} 笔（跳过 ${undo.duplicates} 笔重复）"
+            } else {
+                "已导入 ${undo.imported} 笔"
+            }
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "撤销",
+                duration = SnackbarDuration.Indefinite,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                onEvent(SettingsEvent.UndoWeChatImport)
+            }
+        }
+        snackbarHostState.currentSnackbarData?.dismiss()
     }
 
     Scaffold(
@@ -123,6 +157,15 @@ fun SettingsScreen(
 
             // 数据
             SettingsSectionHeader("数据")
+            SettingsRow(
+                title = "导入微信账单",
+                subtitle = "读取微信支付账单 xlsx，恢复为账目",
+                onClick = {
+                    wechatImportLauncher.launch(
+                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    )
+                },
+            )
             SettingsRow("导出 CSV", subtitle = "全部账目，经系统分享保存", onClick = {
                 scope.launch {
                     val csv = exportCsv()
@@ -210,6 +253,28 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
             },
+        )
+    }
+    when (val importState = uiState.weChatImport) {
+        WeChatImportUiState.Idle -> Unit
+        WeChatImportUiState.Loading -> {
+            AlertDialog(
+                onDismissRequest = { /* 解析中不可关闭 */ },
+                title = { Text("正在解析账单…") },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.height(24.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("读取微信账单并归类，请稍候")
+                    }
+                },
+                confirmButton = {},
+            )
+        }
+        is WeChatImportUiState.Confirm -> WeChatImportConfirmSheet(
+            preview = importState.preview,
+            onConfirm = { onEvent(SettingsEvent.ConfirmWeChatImport) },
+            onDismiss = { onEvent(SettingsEvent.DismissWeChatImport) },
         )
     }
 }
@@ -360,7 +425,7 @@ private fun CategoryManageDialog(
                     .heightIn(max = 420.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                EntryType.entries.forEach { type ->
+                listOf(EntryType.EXPENSE, EntryType.INCOME).forEach { type ->
                     Text(
                         text = if (type == EntryType.EXPENSE) "支出类别" else "收入类别",
                         style = MaterialTheme.typography.labelLarge,
@@ -441,3 +506,92 @@ private fun appVersionName(context: Context): String = runCatching {
         PackageManager.PackageInfoFlags.of(0),
     ).versionName
 }.getOrNull() ?: "未知"
+
+/**
+ * 微信账单导入确认层（ADR 0012）：汇总确认一次性入库。
+ * 展示账单时间范围、收支/中性笔数、分类分布与去重/跳过说明，不逐笔确认。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WeChatImportConfirmSheet(
+    preview: WeChatImportPreview,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val totalNew = preview.expenseCount + preview.incomeCount + preview.neutralCount
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp),
+        ) {
+            Text("导入微信账单", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = preview.from?.let { from ->
+                    preview.to?.let { to -> "账单范围：$from 至 $to" }
+                } ?: "账单范围：未知",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = buildString {
+                    append("支出 ${preview.expenseCount} 笔 · 收入 ${preview.incomeCount} 笔")
+                    if (preview.neutralCount > 0) append(" · 中性（退款）${preview.neutralCount} 笔")
+                },
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            if (preview.duplicateCount > 0 || preview.skippedCount > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = buildString {
+                        if (preview.duplicateCount > 0) append("其中 ${preview.duplicateCount} 笔与已有账目重复，不会重复导入")
+                        if (preview.duplicateCount > 0 && preview.skippedCount > 0) append("；")
+                        if (preview.skippedCount > 0) append("跳过 ${preview.skippedCount} 笔（充值/提现等中性交易）")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("分类分布", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                preview.categoryDistribution.forEach { (category, count) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(category, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "$count 笔",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onDismiss) { Text("取消") }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = onConfirm, enabled = totalNew > 0) {
+                    Text(if (totalNew > 0) "导入 $totalNew 笔" else "没有可导入的账目")
+                }
+            }
+        }
+    }
+}

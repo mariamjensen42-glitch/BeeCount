@@ -67,4 +67,21 @@ class FakeEntryRepository(
     override suspend fun clearAll() {
         entries.clear()
     }
+
+    override suspend fun findExistingSourceRefs(refs: Collection<String>): Set<String> =
+        entries.mapNotNull { it.sourceRef }.toSet().intersect(refs.toSet())
+
+    override suspend fun addAll(entries: List<Entry>): Int {
+        val existing = findExistingSourceRefs(entries.mapNotNull { it.sourceRef })
+        val fresh = entries.filter { it.sourceRef == null || it.sourceRef !in existing }
+        this.entries += fresh
+        return fresh.size
+    }
+
+    override suspend fun deleteBySourceRefs(refs: Collection<String>): Int {
+        val set = refs.toSet()
+        val before = entries.size
+        entries.removeAll { it.sourceRef in set }
+        return before - entries.size
+    }
 }

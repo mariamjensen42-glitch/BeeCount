@@ -22,11 +22,11 @@ data class AnalyticsTotals(
  */
 internal object AnalyticsAggregator {
 
-    /** 区间合计：支出/收入/笔数 */
+    /** 区间合计：支出/收入/笔数（笔数只算支出+收入，中性记录不计入，ADR 0012） */
     fun totals(entries: List<Entry>): AnalyticsTotals = AnalyticsTotals(
         expense = entries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount },
         income = entries.filter { it.type == EntryType.INCOME }.sumOf { it.amount },
-        entryCount = entries.size,
+        entryCount = entries.count { it.type == EntryType.EXPENSE || it.type == EntryType.INCOME },
     )
 
     /** 支出类别排行：按合计金额降序，收入类别不参与 */
@@ -58,7 +58,7 @@ internal object AnalyticsAggregator {
 
     /**
      * 年度热力图逐日摘要：全年每个日期均有一个点。
-     * 支出金额只汇总支出，笔数与是否记账涵盖当天全部已入库账目。
+     * 支出金额只汇总支出，笔数与是否记账只算支出+收入（中性记录不计入，ADR 0012）。
      */
     fun annualHeatmap(year: Int, entries: List<Entry>): List<AnnualHeatmapDay> {
         val entriesByDate = entries.groupBy { it.date }
@@ -73,7 +73,9 @@ internal object AnalyticsAggregator {
                 expense = entriesOnDate
                     .filter { it.type == EntryType.EXPENSE }
                     .sumOf { it.amount },
-                entryCount = entriesOnDate.size,
+                entryCount = entriesOnDate.count {
+                    it.type == EntryType.EXPENSE || it.type == EntryType.INCOME
+                },
             )
         }.toList()
     }

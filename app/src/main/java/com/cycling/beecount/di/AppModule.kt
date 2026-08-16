@@ -40,7 +40,7 @@ object AppModule {
             BeeCountDatabase::class.java,
             "beecount.db",
         )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -94,6 +94,17 @@ object AppModule {
                     arrayOf<Any>(entity.name, entity.color, if (entity.isCustom) 1 else 0),
                 )
             }
+        }
+    }
+
+    /**
+     * v2 → v3：账目表新增可空 sourceRef 列并建可空唯一索引（ADR 0012 微信账单导入去重）。
+     * 只加列与索引，不动已有数据，无损。
+     */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `entries` ADD COLUMN `sourceRef` TEXT")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_entries_sourceRef` ON `entries` (`sourceRef`)")
         }
     }
 

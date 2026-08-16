@@ -21,7 +21,13 @@ class ExportEntriesCsvUseCase @Inject constructor(
             entries.forEach { entry ->
                 append(escape(entry.date.format(DATE_FORMAT)))
                 append(',')
-                append(if (entry.type == com.cycling.beecount.domain.model.EntryType.EXPENSE) "支出" else "收入")
+                append(
+                    when (entry.type) {
+                        com.cycling.beecount.domain.model.EntryType.EXPENSE -> "支出"
+                        com.cycling.beecount.domain.model.EntryType.INCOME -> "收入"
+                        com.cycling.beecount.domain.model.EntryType.NEUTRAL -> "中性"
+                    }
+                )
                 append(',')
                 append(escape(entry.categoryName))
                 append(',')

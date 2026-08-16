@@ -66,6 +66,21 @@ class RoomEntryRepository @Inject constructor(
     override suspend fun clearAll() {
         entryDao.clearAll()
     }
+
+    override suspend fun findExistingSourceRefs(refs: Collection<String>): Set<String> {
+        if (refs.isEmpty()) return emptySet()
+        return entryDao.existingSourceRefs(refs.toList()).toSet()
+    }
+
+    override suspend fun addAll(entries: List<Entry>): Int {
+        if (entries.isEmpty()) return 0
+        return entryDao.insertAllIgnoreConflict(entries.map { it.toEntity() }).count { it > 0 }
+    }
+
+    override suspend fun deleteBySourceRefs(refs: Collection<String>): Int {
+        if (refs.isEmpty()) return 0
+        return entryDao.deleteBySourceRefs(refs.toList())
+    }
 }
 
 @Singleton

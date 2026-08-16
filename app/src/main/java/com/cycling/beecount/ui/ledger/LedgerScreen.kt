@@ -248,11 +248,23 @@ private fun LedgerEntryRow(entry: Entry) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Text(
-                    text = "${if (entry.type == EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (entry.type == EntryType.EXPENSE) ExpenseRed else IncomeGreen,
-                )
+                when (entry.type) {
+                    EntryType.EXPENSE -> Text(
+                        text = "-¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = ExpenseRed,
+                    )
+                    EntryType.INCOME -> Text(
+                        text = "+¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = IncomeGreen,
+                    )
+                    EntryType.NEUTRAL -> Text(
+                        text = "¥${formatMoney(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (entry.tags.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))

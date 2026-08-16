@@ -265,7 +265,20 @@ private fun DaySheet(
                             Text(entry.categoryName, style = MaterialTheme.typography.bodyLarge)
                             Text(entry.note.ifBlank { entry.amountRaw }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text("${if (entry.type == com.cycling.beecount.domain.model.EntryType.EXPENSE) "-" else "+"}¥${formatMoney(entry.amount)}", color = if (entry.type == com.cycling.beecount.domain.model.EntryType.EXPENSE) ExpenseRed else IncomeGreen)
+                        when (entry.type) {
+                            com.cycling.beecount.domain.model.EntryType.EXPENSE -> Text(
+                                text = "-¥${formatMoney(entry.amount)}",
+                                color = ExpenseRed,
+                            )
+                            com.cycling.beecount.domain.model.EntryType.INCOME -> Text(
+                                text = "+¥${formatMoney(entry.amount)}",
+                                color = IncomeGreen,
+                            )
+                            com.cycling.beecount.domain.model.EntryType.NEUTRAL -> Text(
+                                text = "¥${formatMoney(entry.amount)}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         TextButton(onClick = { onDelete(entry.id) }) { Text("删除") }
                     }
                 }

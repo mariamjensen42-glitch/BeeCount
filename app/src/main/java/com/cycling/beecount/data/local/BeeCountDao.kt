@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.Junction
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Relation
 import androidx.room.Transaction
@@ -46,6 +47,18 @@ interface EntryDao {
 
     @Insert
     suspend fun insertAll(entries: List<EntryEntity>)
+
+    /** 批量插入并忽略 sourceRef 唯一索引冲突（ADR 0012 导入去重兜底），返回各行的 rowId，冲突行为 -1 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoreConflict(entries: List<EntryEntity>): List<Long>
+
+    /** 微信账单导入去重：返回 [refs] 中已存在于库里的交易单号 */
+    @Query("SELECT sourceRef FROM entries WHERE sourceRef IN (:refs) AND sourceRef IS NOT NULL")
+    suspend fun existingSourceRefs(refs: List<String>): List<String>
+
+    /** 撤销一次导入：按本次导入的交易单号集合删除账目（ADR 0012），返回删除笔数 */
+    @Query("DELETE FROM entries WHERE sourceRef IN (:refs)")
+    suspend fun deleteBySourceRefs(refs: List<String>): Int
 
     @Insert
     suspend fun insertEntryTag(entryTag: EntryTagEntity)
@@ -145,6 +158,7 @@ fun EntrySnapshotRow.toDomain(): EntrySnapshot = EntrySnapshot(
         note = entry.note,
         createdAt = entry.createdAt,
         tags = tags.map { it.toDomain() },
+        sourceRef = entry.sourceRef,
     ),
     tagIds = tagIds,
 )
@@ -165,6 +179,7 @@ fun EntryWithTags.toDomain(): Entry = Entry(
     note = entry.note,
     createdAt = entry.createdAt,
     tags = tags.map { it.toDomain() },
+    sourceRef = entry.sourceRef,
 )
 
 @Dao
