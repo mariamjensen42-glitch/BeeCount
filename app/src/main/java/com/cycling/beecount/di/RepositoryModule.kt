@@ -8,6 +8,8 @@ import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
 import com.cycling.beecount.domain.repository.TagRepository
+import com.cycling.beecount.domain.usecase.MlKitOcrImageLoader
+import com.cycling.beecount.domain.usecase.OcrImageLoader
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -33,4 +35,7 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTagRepository(impl: RoomTagRepository): TagRepository
+
+    @Binds
+    abstract fun bindOcrImageLoader(impl: MlKitOcrImageLoader): OcrImageLoader
 }

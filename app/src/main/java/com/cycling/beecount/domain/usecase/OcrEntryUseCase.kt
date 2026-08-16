@@ -1,14 +1,13 @@
 package com.cycling.beecount.domain.usecase
 
-import android.content.Context
 import android.net.Uri
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val OCR_MIN_TEXT_LENGTH = 15
@@ -20,7 +19,7 @@ private const val OCR_MIN_TEXT_LENGTH = 15
  * 识别结果去除空白后不足 15 字符视为识别失败，直接返回 [Outcome.RecognitionFailed]。
  */
 class OcrEntryUseCase @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val imageLoader: OcrImageLoader,
     private val parseEntryUseCase: ParseEntryUseCase,
 ) {
 
@@ -34,21 +33,28 @@ class OcrEntryUseCase @Inject constructor(
         /** ML Kit 未能从图片中识别出足够文字 */
         data object RecognitionFailed : Outcome
 
-        /** ML Kit 本身抛出异常（图片格式不支持等） */
-        data class ImageError(val message: String) : Outcome
+        /** 图片 Uri 无法读取或解码 */
+        data class ImageReadError(val cause: Exception) : Outcome
+
+        /** ML Kit 识别图片时发生异常 */
+        data class RecognitionError(val cause: Exception) : Outcome
     }
 
     suspend operator fun invoke(uri: Uri): Outcome {
         val image = try {
-            InputImage.fromFilePath(context, uri)
+            imageLoader.load(uri)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            return Outcome.ImageError(e.message ?: "无法读取图片")
+            return Outcome.ImageReadError(e)
         }
 
         val rawText = try {
             recognizeText(image)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            return Outcome.ImageError(e.message ?: "文字识别出错")
+            return Outcome.RecognitionError(e)
         }
 
         if (rawText.filter { !it.isWhitespace() }.length < OCR_MIN_TEXT_LENGTH) {

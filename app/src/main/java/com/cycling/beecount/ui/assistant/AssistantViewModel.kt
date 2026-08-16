@@ -1,6 +1,7 @@
 package com.cycling.beecount.ui.assistant
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
@@ -10,6 +11,7 @@ import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
 import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ObserveTotalsOnUseCase
 import com.cycling.beecount.domain.usecase.OcrEntryUseCase
+import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
 import com.cycling.beecount.domain.usecase.ParseEntryUseCase
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +34,7 @@ class AssistantViewModel @Inject constructor(
     private val parseEntryUseCase: ParseEntryUseCase,
     private val confirmEntryUseCase: ConfirmEntryUseCase,
     private val undoEntryUseCase: UndoEntryUseCase,
+    private val ocrImageImportUseCase: OcrImageImportUseCase,
     private val ocrEntryUseCase: OcrEntryUseCase,
     observeEntriesOn: ObserveEntriesOnUseCase,
     observeTotalsOn: ObserveTotalsOnUseCase,
@@ -171,40 +174,68 @@ class AssistantViewModel @Inject constructor(
         if (_uiState.value.isParsing) return
         _uiState.update { it.copy(isParsing = true) }
         viewModelScope.launch {
-            when (val outcome = ocrEntryUseCase(uri)) {
-                is OcrEntryUseCase.Outcome.RecognitionFailed -> {
-                    _uiState.update { s ->
-                        s.copy(
-                            messages = s.messages + AssistantMessage.Assistant(
-                                newMessageId(),
-                                "未能识别图片文字，请换张截图或手动输入"
-                            )
-                        )
+            try {
+                val importedUri = when (val importOutcome = ocrImageImportUseCase(uri)) {
+                    is OcrImageImportUseCase.Outcome.Imported -> importOutcome.uri
+                    is OcrImageImportUseCase.Outcome.ReadError -> {
+                        logOcrError("无法复制用户选中的图片", uri, importOutcome.cause)
+                        addAssistantMessage("无法访问所选图片，请重新选择一张本地图片")
+                        return@launch
                     }
                 }
 
-                is OcrEntryUseCase.Outcome.ImageError -> {
-                    _uiState.update { s ->
-                        s.copy(
-                            messages = s.messages + AssistantMessage.Assistant(
-                                newMessageId(),
-                                "无法读取图片，请重试"
-                            )
-                        )
+                when (val outcome = ocrEntryUseCase(importedUri)) {
+                    is OcrEntryUseCase.Outcome.RecognitionFailed -> {
+                        addAssistantMessage("未能识别图片文字，请换张截图或手动输入")
                     }
-                }
 
-                is OcrEntryUseCase.Outcome.Parsed ->
-                    handleParseOutcome(
-                        outcome.parseOutcome,
-                        // 优先用 AI 整理的简短备注，否则回退到识别原文
-                        originalText = (outcome.parseOutcome as? ParseEntryUseCase.Outcome.Success)
-                            ?.result?.note?.takeIf { it.isNotEmpty() }
-                            ?: outcome.rawText,
-                    )
+                    is OcrEntryUseCase.Outcome.ImageReadError -> {
+                        logOcrError("无法读取 OCR 缓存图片", importedUri, outcome.cause)
+                        addAssistantMessage("无法读取所选图片，请重新选择后重试")
+                    }
+
+                    is OcrEntryUseCase.Outcome.RecognitionError -> {
+                        logOcrError("图片文字识别失败", importedUri, outcome.cause)
+                        addAssistantMessage("图片文字识别失败，请换张清晰截图后重试")
+                    }
+
+                    is OcrEntryUseCase.Outcome.Parsed ->
+                        handleParseOutcome(
+                            outcome.parseOutcome,
+                            // 优先用 AI 整理的简短备注，否则回退到识别原文
+                            originalText = (outcome.parseOutcome as? ParseEntryUseCase.Outcome.Success)
+                                ?.result?.note?.takeIf { it.isNotEmpty() }
+                                ?: outcome.rawText,
+                        )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logOcrError("OCR 处理出现未预期错误", uri, e)
+                addAssistantMessage("图片处理失败，请重新选择后重试")
+            } finally {
+                _uiState.update { it.copy(isParsing = false) }
             }
-            _uiState.update { it.copy(isParsing = false) }
         }
+    }
+
+    private fun addAssistantMessage(text: String) {
+        _uiState.update { state ->
+            state.copy(messages = state.messages + AssistantMessage.Assistant(newMessageId(), text))
+        }
+    }
+
+    private fun logOcrError(operation: String, uri: Uri, cause: Exception) {
+        Log.w(
+            OCR_LOG_TAG,
+            "$operation: scheme=${uri.scheme}, authority=${uri.authority}, " +
+                "error=${cause::class.java.simpleName}: ${cause.message}",
+            cause,
+        )
+    }
+
+    private companion object {
+        const val OCR_LOG_TAG = "BeeCountOcr"
     }
 
     /** 处理 [ParseEntryUseCase.Outcome]，供文字输入和 OCR 两条路径共用。*/
