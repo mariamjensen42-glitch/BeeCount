@@ -65,6 +65,7 @@ import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.usecase.WeChatImportPreview
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.common.TagManageSheet
+import com.cycling.beecount.notification.PaymentNotificationListener
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.AdjustmentsHorizontal
@@ -206,9 +207,7 @@ fun SettingsScreen(
                 title = "通知监听",
                 subtitle = if (uiState.notificationListeningGranted) "已开启" else "未开启 · 点按去系统授权",
                 icon = Heroicons.Outline.Bell,
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                },
+                onClick = { openNotificationListenerSettings(context) },
             )
             if (Build.VERSION.SDK_INT >= 33) {
                 SettingsRow(
@@ -294,9 +293,7 @@ fun SettingsScreen(
             nlsGranted = uiState.notificationListeningGranted,
             postGranted = uiState.postNotificationsGranted,
             showPostStep = Build.VERSION.SDK_INT >= 33,
-            onOpenNlsSettings = {
-                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-            },
+            onOpenNlsSettings = { openNotificationListenerSettings(context) },
             onRequestPostNotifications = { postNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
             onDismiss = { onEvent(SettingsEvent.DismissAutoEntrySetup) },
         )
@@ -542,8 +539,8 @@ private fun KeepAliveDialog(onDismiss: () -> Unit) {
         text = {
             Text(
                 "部分手机默认限制后台服务，可能导致收不到支付通知而漏记。建议把 BeeCount 加入电池白名单：\n\n" +
+                    "· 小米/红米：安全中心 → 应用管理 → 权限 → 自启动；设置 → 省电与电池 → 省电策略 → 无限制\n" +
                     "· 华为：设置 → 应用 → 应用启动管理 → 关闭「自动管理」→ 允许自启动\n" +
-                    "· 小米：设置 → 应用设置 → 应用管理 → BeeCount → 省电策略 → 无限制\n" +
                     "· OPPO：设置 → 电池 → 更多设置 → 耗电管理 → 允许后台运行\n" +
                     "· vivo：i管家 → 应用管理 → 权限管理 → 后台启动\n" +
                     "· 荣耀：设置 → 应用 → 权限管理 → 允许自启动",
@@ -554,6 +551,23 @@ private fun KeepAliveDialog(onDismiss: () -> Unit) {
             TextButton(onClick = onDismiss) { Text("知道了") }
         },
     )
+}
+
+/**
+ * 打开通知监听授权页（ADR 0014）：
+ * 优先用 API 30+ 的详情直达（EXTRA 带组件名，直接落到 BeeCount 的授权开关，
+ * 绕开 MIUI 等 OEM 在列表里找不到应用的问题）；个别设备没有该 Activity 时兜底到列表页。
+ */
+private fun openNotificationListenerSettings(context: Context) {
+    val component = android.content.ComponentName(context, PaymentNotificationListener::class.java)
+    val detailIntent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).apply {
+        putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+    }
+    try {
+        context.startActivity(detailIntent)
+    } catch (e: android.content.ActivityNotFoundException) {
+        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    }
 }
 
 @Composable
