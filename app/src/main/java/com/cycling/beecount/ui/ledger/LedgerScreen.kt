@@ -204,7 +204,7 @@ private fun DayHeader(date: LocalDate, dayEntries: List<Entry>) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = date.format(DateTimeFormatter.ofPattern("M月d日")),
+            text = date.format(DateTimeFormatter.ofPattern("yyyy年M月d日")),
             style = MaterialTheme.typography.titleMedium,
         )
         Row {
