@@ -1,6 +1,7 @@
 package com.cycling.beecount.domain.usecase
 
 import com.cycling.beecount.domain.model.Entry
+import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.EntryRepository
 import com.cycling.beecount.domain.repository.EntrySnapshot
 import com.cycling.beecount.domain.repository.TodayTotals
@@ -75,6 +76,13 @@ class FakeEntryRepository(
         val existing = findExistingSourceRefs(entries.mapNotNull { it.sourceRef })
         val fresh = entries.filter { it.sourceRef == null || it.sourceRef !in existing }
         this.entries += fresh
+        return fresh.size
+    }
+
+    override suspend fun addAllWithTag(entries: List<Entry>, tag: Tag): Int {
+        val existing = findExistingSourceRefs(entries.mapNotNull { it.sourceRef })
+        val fresh = entries.filter { it.sourceRef == null || it.sourceRef !in existing }
+        this.entries += fresh.map { it.copy(tags = it.tags + tag) }
         return fresh.size
     }
 

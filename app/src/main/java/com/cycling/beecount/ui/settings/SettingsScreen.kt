@@ -543,6 +543,12 @@ private fun WeChatImportConfirmSheet(
                 },
                 style = MaterialTheme.typography.bodyLarge,
             )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "全部账目将统一打上「微信」标签",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (preview.duplicateCount > 0 || preview.skippedCount > 0) {
                 Spacer(Modifier.height(4.dp))
                 Text(

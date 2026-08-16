@@ -52,6 +52,20 @@ interface EntryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAllIgnoreConflict(entries: List<EntryEntity>): List<Long>
 
+    /** 批量插入并给本次实际插入的账目挂统一标签，同事务（ADR 0012 微信来源标签） */
+    @Transaction
+    suspend fun insertAllWithTag(entries: List<EntryEntity>, tagId: Long): Int {
+        val rowIds = insertAllIgnoreConflict(entries)
+        var inserted = 0
+        rowIds.forEach { rowId ->
+            if (rowId > 0) {
+                insertEntryTag(EntryTagEntity(entryId = rowId, tagId = tagId))
+                inserted++
+            }
+        }
+        return inserted
+    }
+
     /** 微信账单导入去重：返回 [refs] 中已存在于库里的交易单号 */
     @Query("SELECT sourceRef FROM entries WHERE sourceRef IN (:refs) AND sourceRef IS NOT NULL")
     suspend fun existingSourceRefs(refs: List<String>): List<String>

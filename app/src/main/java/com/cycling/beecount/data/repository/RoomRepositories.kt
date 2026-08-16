@@ -77,6 +77,11 @@ class RoomEntryRepository @Inject constructor(
         return entryDao.insertAllIgnoreConflict(entries.map { it.toEntity() }).count { it > 0 }
     }
 
+    override suspend fun addAllWithTag(entries: List<Entry>, tag: Tag): Int {
+        if (entries.isEmpty()) return 0
+        return entryDao.insertAllWithTag(entries.map { it.toEntity() }, tag.id)
+    }
+
     override suspend fun deleteBySourceRefs(refs: Collection<String>): Int {
         if (refs.isEmpty()) return 0
         return entryDao.deleteBySourceRefs(refs.toList())

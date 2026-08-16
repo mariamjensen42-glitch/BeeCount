@@ -40,7 +40,7 @@ class ImportWeChatBillUseCaseTest {
                     date = LocalDate.of(2026, 4, 1), note = "已存在的", sourceRef = "DUP-1"),
             ),
         )
-        val useCase = ImportWeChatBillUseCase(repo)
+        val useCase = ImportWeChatBillUseCase(repo, FakeTagRepository())
         val preview = useCase.preview(
             draft(
                 draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1", LocalDate.of(2026, 4, 1)),
@@ -69,7 +69,8 @@ class ImportWeChatBillUseCaseTest {
                     date = LocalDate.of(2026, 4, 1), note = "已存在的", sourceRef = "DUP-1"),
             ),
         )
-        val useCase = ImportWeChatBillUseCase(repo)
+        val tagRepo = FakeTagRepository()
+        val useCase = ImportWeChatBillUseCase(repo, tagRepo)
         val result = useCase.confirm(
             draft(
                 draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1"),
@@ -85,6 +86,29 @@ class ImportWeChatBillUseCaseTest {
         assertEquals(listOf("NEW-1", "NEW-2", "NEW-3"), result.insertedRefs)
         assertEquals(4, repo.storedEntries.size)
         assertEquals(setOf("NEW-1", "NEW-2", "NEW-3"), repo.storedEntries.mapNotNull { it.sourceRef }.toSet() - "DUP-1")
+        // 本次插入的账目统一挂「微信」来源标签，重复跳过的不重复打
+        val newEntries = repo.storedEntries.filter { it.sourceRef != "DUP-1" }
+        assertEquals(listOf("微信"), newEntries.map { it.tags.single().name }.distinct())
+        assertEquals(listOf("微信"), tagRepo.tags.map { it.name })
+        assertEquals(1, tagRepo.createCount)
+    }
+
+    @Test
+    fun `全部重复时不再创建微信标签也不插入`() = runTest {
+        val repo = FakeEntryRepository(
+            entries = listOf(
+                Entry(type = EntryType.EXPENSE, amount = 1.0, amountRaw = "1", categoryName = "餐饮",
+                    date = LocalDate.of(2026, 4, 1), note = "已存在的", sourceRef = "DUP-1"),
+            ),
+        )
+        val tagRepo = FakeTagRepository()
+        val useCase = ImportWeChatBillUseCase(repo, tagRepo)
+        val result = useCase.confirm(draft(draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1")))
+
+        assertEquals(0, result.imported)
+        assertEquals(1, result.duplicates)
+        assertEquals(1, repo.storedEntries.size)
+        assertEquals(0, tagRepo.createCount)
     }
 
     @Test
