@@ -59,6 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.R
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.HoneyAmber
 import com.cycling.beecount.ui.theme.IncomeGreen
@@ -134,7 +135,9 @@ fun AssistantScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .imePadding(),
+                .imePadding()
+                // 底部留出悬浮胶囊高度，输入栏不被胶囊盖住（常量已含胶囊底部留白）
+                .padding(bottom = FLOATING_PILL_CLEARANCE),
         ) {
             LazyColumn(
                 modifier = Modifier.weight(1f),
