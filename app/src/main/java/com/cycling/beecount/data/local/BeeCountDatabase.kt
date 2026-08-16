@@ -7,7 +7,7 @@ import com.cycling.beecount.domain.model.EntryType
 
 @Database(
     entities = [EntryEntity::class, CategoryEntity::class, TagEntity::class, EntryTagEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(LocalDateConverter::class)
@@ -23,6 +23,7 @@ abstract class BeeCountDatabase : RoomDatabase() {
             CategoryEntity(name = "餐饮", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "交通", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "购物", type = EntryType.EXPENSE, isCustom = false),
+            CategoryEntity(name = "快递物流", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "居住", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "娱乐", type = EntryType.EXPENSE, isCustom = false),
             CategoryEntity(name = "医疗", type = EntryType.EXPENSE, isCustom = false),

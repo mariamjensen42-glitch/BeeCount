@@ -34,22 +34,25 @@ class WeChatBillClassifierTest {
     }
 
     @Test
-    fun `顺丰运费映射为购物`() {
+    fun `顺丰运费映射为快递物流`() {
         val draft = classify(row(
             goods = "散单运费-顺丰速运",
             incomeExpense = "支出",
             status = "支付成功",
             sourceRef = "T2",
         ))
-        assertEquals("购物", draft.entries.single().categoryName)
+        assertEquals("快递物流", draft.entries.single().categoryName)
     }
 
     @Test
-    fun `货拉拉与地铁映射为交通`() {
-        val huolala = classify(row(goods = "货拉拉车费后置支付", incomeExpense = "支出", status = "支付成功", sourceRef = "T3"))
-        val metro = classify(row(counterparty = "广州地铁城市通乘车", goods = "2026-04-09 17:08乘车费用", incomeExpense = "支出", status = "支付成功", sourceRef = "T4"))
-        assertEquals("交通", huolala.entries.single().categoryName)
+    fun `地铁映射为交通，货拉拉映射为其他`() {
+        val metro = classify(row(counterparty = "广州地铁城市通乘车", goods = "2026-04-09 17:08乘车费用", incomeExpense = "支出", status = "支付成功", sourceRef = "T3"))
+        val huolala = classify(row(goods = "货拉拉费用", incomeExpense = "支出", status = "支付成功", sourceRef = "T4"))
+        // "货拉拉车费后置支付"不因含"车费"二字误入交通（车费关键词已从交通规则移除）
+        val huolalaRide = classify(row(goods = "货拉拉车费后置支付", incomeExpense = "支出", status = "支付成功", sourceRef = "T4b"))
         assertEquals("交通", metro.entries.single().categoryName)
+        assertEquals("其他", huolala.entries.single().categoryName)
+        assertEquals("其他", huolalaRide.entries.single().categoryName)
     }
 
     @Test

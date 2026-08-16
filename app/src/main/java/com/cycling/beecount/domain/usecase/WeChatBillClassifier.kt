@@ -113,13 +113,17 @@ class WeChatBillClassifier @Inject constructor() {
                 category = "餐饮",
             ),
             CategoryRule(
-                keywords = listOf("地铁", "乘车", "货拉拉", "打车", "滴滴", "出租", "公交", "高铁",
-                    "火车", "机票", "停车", "加油", "高速", "车费", "充电"),
+                keywords = listOf("地铁", "乘车", "打车", "滴滴", "出租", "公交", "高铁",
+                    "火车", "机票", "停车", "加油", "高速", "充电"),
                 category = "交通",
             ),
             CategoryRule(
+                keywords = listOf("顺丰", "速运", "快递", "物流", "运费"),
+                category = "快递物流",
+            ),
+            CategoryRule(
                 keywords = listOf("超市", "便利店", "画材", "文具", "百货", "商城", "淘宝", "天猫",
-                    "京东", "拼多多", "购物", "零食", "水果", "速运", "快递", "运费"),
+                    "京东", "拼多多", "购物", "零食", "水果"),
                 category = "购物",
             ),
             CategoryRule(

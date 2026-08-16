@@ -40,7 +40,7 @@ object AppModule {
             BeeCountDatabase::class.java,
             "beecount.db",
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
@@ -105,6 +105,19 @@ object AppModule {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `entries` ADD COLUMN `sourceRef` TEXT")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_entries_sourceRef` ON `entries` (`sourceRef`)")
+        }
+    }
+
+    /**
+     * v3 → v4：类别表补预置「快递物流」支出类别（微信账单导入分类映射用，用户反馈运费
+     * 不应归购物）。纯数据补种，老库首次升级时 INSERT OR IGNORE，不动已有数据。
+     */
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories (name, type, isCustom) VALUES (?, ?, ?)",
+                arrayOf<Any>("快递物流", "EXPENSE", 0),
+            )
         }
     }
 
