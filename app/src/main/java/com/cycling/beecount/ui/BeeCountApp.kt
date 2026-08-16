@@ -61,6 +61,12 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.solid.Cog6Tooth
  * 常规宽度显示图标与文字；窄宽或字体放大时自动退化为四个等宽图标 tab，
  * 避免把正常手机上的导航整体缩小来迁就最窄屏幕。
  */
+/**
+ * 悬浮胶囊底部栏占用的屏幕高度（含底部 12dp 留白与胶囊自身高度）。
+ * 页面内 snackbar 等底部浮层需垫高到它上方，否则会被胶囊遮住；账本页内容 padding 同口径。
+ */
+internal val FLOATING_PILL_CLEARANCE = 84.dp
+
 @Composable
 fun BeeCountApp() {
     val navController = rememberNavController()

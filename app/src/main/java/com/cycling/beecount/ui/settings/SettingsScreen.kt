@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.usecase.WeChatImportPreview
+import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.common.TagManageSheet
 import java.io.File
 import java.time.LocalDate
@@ -127,7 +128,13 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text("设置") }) },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                // 悬浮胶囊底部栏覆盖在内容之上，snackbar 需垫到它上方（ADR 0009 胶囊导航）
+                modifier = Modifier.navigationBarsPadding().padding(bottom = FLOATING_PILL_CLEARANCE),
+            )
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
