@@ -9,6 +9,7 @@ fun BeeCountTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = BeeCountDarkColorScheme,
         typography = Typography,
+        shapes = BeeCountShapes,
         content = content
     )
 }
