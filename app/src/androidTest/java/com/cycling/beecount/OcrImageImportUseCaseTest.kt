@@ -1,9 +1,9 @@
 package com.cycling.beecount
 
-import androidx.core.content.FileProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
+import com.cycling.beecount.domain.usecase.OcrImageSource
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -21,23 +21,21 @@ class OcrImageImportUseCaseTest {
             parentFile?.mkdirs()
             writeBytes(byteArrayOf(1, 2, 3, 4))
         }
-        val sourceUri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            source,
-        )
+        val sourceUri = android.net.Uri.fromFile(source)
 
         val outcome = OcrImageImportUseCase(context)(sourceUri)
 
         assertTrue(outcome is OcrImageImportUseCase.Outcome.Imported)
-        val importedUri = (outcome as OcrImageImportUseCase.Outcome.Imported).uri
-        assertEquals("content", importedUri.scheme)
-        assertEquals(context.packageName + ".fileprovider", importedUri.authority)
+        val importedSource = (outcome as OcrImageImportUseCase.Outcome.Imported).source
+        assertEquals(OcrImageSource::class, importedSource::class)
+        val cachedFile = File(importedSource.cacheFilePath)
+        assertTrue(cachedFile.exists())
         assertEquals(
             listOf<Byte>(1, 2, 3, 4),
-            context.contentResolver.openInputStream(importedUri)!!.use { it.readBytes().toList() },
+            cachedFile.readBytes().toList(),
         )
 
         source.delete()
+        cachedFile.delete()
     }
 }

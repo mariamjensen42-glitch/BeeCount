@@ -7,6 +7,7 @@ import com.cycling.beecount.domain.model.WeChatImportDraft
 import com.cycling.beecount.domain.model.WeChatImportDraftEntry
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+import timber.log.Timber
 
 /**
  * 微信账单行的分类器（ADR 0012）：把原始流水行翻译成可入库的账目草稿。
@@ -22,14 +23,25 @@ import javax.inject.Inject
 class WeChatBillClassifier @Inject constructor() {
 
     fun classify(bill: WeChatBill): WeChatImportDraft {
+        Timber.d("开始分类微信账单行，共 %d 行", bill.rows.size)
         val entries = mutableListOf<WeChatImportDraftEntry>()
         var skipped = 0
         bill.rows.forEach { row ->
             when (val decision = decide(row)) {
-                is Decision.Skip -> skipped++
-                is Decision.Import -> entries += decision.toDraftEntry()
+                is Decision.Skip -> {
+                    skipped++
+                    Timber.d("跳过账单行：time=%s，type=%s，incomeExpense=%s，sourceRef=%s",
+                        row.time, row.type, row.incomeExpense, row.sourceRef)
+                }
+                is Decision.Import -> {
+                    entries += decision.toDraftEntry()
+                    Timber.d("导入账单行：time=%s，type=%s，category=%s，amount=%s，sourceRef=%s",
+                        row.time, decision.type, decision.categoryName, row.amount, row.sourceRef)
+                }
             }
         }
+        Timber.i("微信账单分类完成：共 %d 行、导入 %d 条、跳过 %d 条",
+            bill.rows.size, entries.size, skipped)
         return WeChatImportDraft(entries = entries, skippedCount = skipped)
     }
 
@@ -76,6 +88,7 @@ class WeChatBillClassifier @Inject constructor() {
         date = row.time.toLocalDate(),
         note = buildNote(row),
         sourceRef = row.sourceRef,
+        counterparty = row.counterparty.takeUnless { it.isBlank() || it == "/" },
     )
 
     /** 备注 = `HH:mm · 交易对方 · 商品`，跳过 "/" 占位与空段 */

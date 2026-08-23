@@ -3,14 +3,16 @@ package com.cycling.beecount.ui.analytics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AnnualAnalytics
+import com.cycling.beecount.domain.model.ComparisonAnalytics
 import com.cycling.beecount.domain.model.MonthlyAnalytics
-import com.cycling.beecount.domain.usecase.BuildAnnualAnalyticsUseCase
-import com.cycling.beecount.domain.usecase.BuildMonthlyAnalyticsUseCase
+import com.cycling.beecount.domain.query.EntryQuery
+import com.cycling.beecount.domain.usecase.BuildComparisonAnalyticsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Year
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,8 +32,8 @@ import kotlinx.coroutines.flow.update
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AnalyticsViewModel @Inject constructor(
-    private val buildMonthly: BuildMonthlyAnalyticsUseCase,
-    private val buildAnnual: BuildAnnualAnalyticsUseCase,
+    private val entryQuery: EntryQuery,
+    private val buildComparison: BuildComparisonAnalyticsUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
@@ -43,7 +45,7 @@ class AnalyticsViewModel @Inject constructor(
             if (state.granularity == AnalyticsGranularity.MONTH) state.selectedMonth else null
         }
         .distinctUntilChanged()
-        .flatMapLatest { month -> if (month == null) flowOf(null) else buildMonthly(month) }
+        .flatMapLatest { month -> if (month == null) flowOf(null) else entryQuery.buildMonth(month) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** 年度报告：仅在「年度」粒度下订阅选中的年份 */
@@ -52,8 +54,27 @@ class AnalyticsViewModel @Inject constructor(
             if (state.granularity == AnalyticsGranularity.YEAR) state.selectedYear else null
         }
         .distinctUntilChanged()
-        .flatMapLatest { year -> if (year == null) flowOf(null) else buildAnnual(year) }
+        .flatMapLatest { year -> if (year == null) flowOf(null) else entryQuery.buildAnnual(year) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** 时间段对比：月度=本月 vs 上月，年度=本年 vs 去年 */
+    val comparisonAnalytics: StateFlow<ComparisonAnalytics?> = _uiState
+        .map { state ->
+            if (state.granularity == AnalyticsGranularity.MONTH) {
+                ComparisonQuery.MONTH(state.selectedMonth)
+            } else {
+                ComparisonQuery.YEAR(state.selectedYear)
+            }
+        }
+        .distinctUntilChanged()
+        .flatMapLatest { query -> buildComparisonFlow(query) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private fun buildComparisonFlow(query: ComparisonQuery): Flow<ComparisonAnalytics?> =
+        when (query) {
+            is ComparisonQuery.MONTH -> buildComparison(query.month)
+            is ComparisonQuery.YEAR -> buildComparison(year = query.year)
+        }
 
     fun onEvent(event: AnalyticsEvent) {
         when (event) {
@@ -99,4 +120,10 @@ class AnalyticsViewModel @Inject constructor(
                 _uiState.update { state -> state.copy(selectedHeatmapDate = event.date) }
         }
     }
+}
+
+/** 时间段对比查询：月度用 month，年度用 year */
+private sealed interface ComparisonQuery {
+    data class MONTH(val month: YearMonth) : ComparisonQuery
+    data class YEAR(val year: Int) : ComparisonQuery
 }

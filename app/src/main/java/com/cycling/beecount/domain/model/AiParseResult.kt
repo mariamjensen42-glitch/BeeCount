@@ -20,4 +20,6 @@ data class AiParseResult(
     val message: String? = null,
     val tags: List<String> = emptyList(),
     val note: String? = null,
+    /** 交易对方（商家/转账方等），AI 可识别时写入，否则 null */
+    val counterparty: String? = null,
 )

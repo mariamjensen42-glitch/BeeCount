@@ -37,6 +37,8 @@ data class WeChatImportDraftEntry(
     val date: LocalDate,
     val note: String,
     val sourceRef: String,
+    /** 交易对方，来自微信账单行的 counterparty 列 */
+    val counterparty: String? = null,
 )
 
 /**
@@ -57,4 +59,5 @@ fun WeChatImportDraftEntry.toEntry(): Entry = Entry(
     date = date,
     note = note,
     sourceRef = sourceRef,
+    counterparty = counterparty,
 )

@@ -1,5 +1,13 @@
 package com.cycling.beecount.ui.calendar
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,10 +57,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.CalendarDaySummary
 import com.cycling.beecount.domain.model.CalendarMonth
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
+import com.cycling.beecount.ui.assistant.EditEntrySheet
 import com.cycling.beecount.ui.assistant.formatMoney
+import com.cycling.beecount.ui.theme.ComponentDefaults
+import com.cycling.beecount.ui.theme.Dimens
 import com.cycling.beecount.ui.theme.ExpenseRed
-import com.cycling.beecount.ui.theme.HoneyAmber
+import com.cycling.beecount.ui.theme.TerminalCyan
 import com.cycling.beecount.ui.theme.IncomeGreen
+import com.cycling.beecount.ui.theme.Spacing
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChartBar
@@ -124,7 +137,31 @@ fun CalendarScreen(
         ) {
             item { MonthSelector(uiState.selectedMonth, onEvent, onOpenPicker = { showMonthPicker = true }) }
             item { MonthSummary(calendarMonth) }
-            item { MonthGrid(uiState, calendarMonth, onEvent) }
+            item {
+                // 月份切换：按新旧月份大小判断滑动方向，与日历平替方向感一致
+                AnimatedContent<YearMonth>(
+                    targetState = uiState.selectedMonth,
+                    transitionSpec = {
+                        val next = this.targetState
+                        val prev = this.initialState
+                        val movingForward = next > prev
+                        if (movingForward) {
+                            (slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(260)) + fadeIn(tween(260))) togetherWith
+                                (slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(260)) + fadeOut(tween(260)))
+                        } else {
+                            (slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(260)) + fadeIn(tween(260))) togetherWith
+                                (slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(260)) + fadeOut(tween(260)))
+                        }
+                    },
+                ) { animatedMonth: YearMonth ->
+                    MonthGrid(
+                        uiState = uiState,
+                        month = calendarMonth,
+                        onEvent = onEvent,
+                        selectedMonth = animatedMonth,
+                    )
+                }
+            }
         }
     }
     if (showMonthPicker) {
@@ -145,8 +182,33 @@ fun CalendarScreen(
             entries = dayEntries,
             onDismiss = { onEvent(CalendarEvent.CloseDaySheet) },
             onDelete = { onEvent(CalendarEvent.DeleteEntry(it)) },
+            onEditEntry = { entry -> onEvent(CalendarEvent.OpenEditEntry(entry)) },
             onAddEntry = { onAddEntry(uiState.selectedDate) },
         )
+    }
+    uiState.editingEntry?.let { entry ->
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { onEvent(CalendarEvent.CloseEditEntry) }) {
+            EditEntrySheet(
+                entry = entry,
+                categories = uiState.allCategories,
+                tags = uiState.allTags,
+                onSave = { type, amount, categoryName, date, note, tagNames, counterparty ->
+                    onEvent(
+                        CalendarEvent.SaveEditEntry(
+                            entryId = entry.id,
+                            editedType = type,
+                            editedAmount = amount,
+                            editedCategoryName = categoryName,
+                            editedDate = date,
+                            editedNote = note,
+                            tagNames = tagNames,
+                            editedCounterparty = counterparty,
+                        )
+                    )
+                },
+                onDismiss = { onEvent(CalendarEvent.CloseEditEntry) },
+            )
+        }
     }
 }
 
@@ -168,10 +230,23 @@ private fun MonthSelector(month: YearMonth, onEvent: (CalendarEvent) -> Unit, on
 private fun MonthSummary(month: CalendarMonth?) {
     val expense = month?.expense ?: 0.0
     val income = month?.income ?: 0.0
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        SummaryValue("支出", expense, ExpenseRed)
-        SummaryValue("收入", income, IncomeGreen)
-        SummaryValue("结余", income - expense, MaterialTheme.colorScheme.onSurface)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ComponentDefaults.cardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            SummaryValue("支出", expense, ExpenseRed)
+            SummaryValue("收入", income, IncomeGreen)
+            SummaryValue("结余", income - expense, MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 
@@ -184,8 +259,12 @@ private fun SummaryValue(label: String, amount: Double, color: Color) {
 }
 
 @Composable
-private fun MonthGrid(uiState: CalendarUiState, month: CalendarMonth?, onEvent: (CalendarEvent) -> Unit) {
-    val selectedMonth = uiState.selectedMonth
+private fun MonthGrid(
+    uiState: CalendarUiState,
+    month: CalendarMonth?,
+    onEvent: (CalendarEvent) -> Unit,
+    selectedMonth: YearMonth = uiState.selectedMonth,
+) {
     val first = selectedMonth.atDay(1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val last = selectedMonth.atEndOfMonth().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
     val dates = generateSequence(first) { date -> date.takeIf { it < last }?.plusDays(1) }.toList()
@@ -214,11 +293,15 @@ private fun MonthGrid(uiState: CalendarUiState, month: CalendarMonth?, onEvent: 
 
 @Composable
 private fun CalendarCell(date: LocalDate, day: CalendarDaySummary?, enabled: Boolean, selected: Boolean, today: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val border = when {
-        selected -> MaterialTheme.colorScheme.onSurface
-        today -> HoneyAmber
-        else -> Color.Transparent
-    }
+    val border by animateColorAsState(
+        targetValue = when {
+            selected -> MaterialTheme.colorScheme.onSurface
+            today -> TerminalCyan
+            else -> Color.Transparent
+        },
+        animationSpec = tween(180),
+        label = "calendarCellBorder",
+    )
     Box(
         modifier = modifier.padding(2.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(5.dp))
             .then(if (border != Color.Transparent) Modifier.border(if (selected) 2.dp else 1.dp, border, androidx.compose.foundation.shape.RoundedCornerShape(5.dp)) else Modifier)
@@ -247,6 +330,7 @@ private fun DaySheet(
     entries: List<com.cycling.beecount.domain.model.Entry>,
     onDismiss: () -> Unit,
     onDelete: (Long) -> Unit,
+    onEditEntry: (com.cycling.beecount.domain.model.Entry) -> Unit,
     onAddEntry: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -287,6 +371,7 @@ private fun DaySheet(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        TextButton(onClick = { onEditEntry(entry) }) { Text("编辑") }
                         TextButton(onClick = { onDelete(entry.id) }) { Text("删除") }
                     }
                 }

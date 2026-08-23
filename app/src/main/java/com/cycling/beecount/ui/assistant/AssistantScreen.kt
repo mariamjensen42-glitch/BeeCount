@@ -4,6 +4,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -51,21 +57,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.R
+import com.cycling.beecount.domain.model.BudgetProgress
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
+import com.cycling.beecount.ui.theme.ComponentDefaults
+import com.cycling.beecount.ui.theme.Dimens
 import com.cycling.beecount.ui.theme.ExpenseRed
-import com.cycling.beecount.ui.theme.HoneyAmber
+import com.cycling.beecount.ui.theme.TerminalCyan
 import com.cycling.beecount.ui.theme.IncomeGreen
+import com.cycling.beecount.ui.theme.OnTerminalCyan
+import com.cycling.beecount.ui.theme.Spacing
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronDown
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronUp
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.PaperAirplane
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
 import java.time.LocalDate
@@ -130,7 +144,7 @@ fun AssistantScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("AI 记账助手") },
+                title = { Text("今日") },
                 // OCR 双入口放顶栏，输入行只留输入框与发送，避免一行四个元素拥挤
                 actions = {
                     if (hasCameraHardware) {
@@ -178,24 +192,26 @@ fun AssistantScreen(
 
                 if (uiState.messages.isEmpty() && uiState.pendingResult == null && !uiState.isParsing) {
                     item {
-                        AssistantBubble(
-                            "你好呀！我是 BeeCount 记账助手 🐝\n告诉我一笔收支就能帮你记下，比如：昨天打车花了30块"
+                        WelcomeCard(
+                            onExampleSubmit = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
                         )
                     }
                 }
 
                 items(uiState.messages, key = { "message-${it.id}" }) { message ->
                     when (message) {
-                        is AssistantMessage.User -> UserBubble(message.text)
-                        is AssistantMessage.Assistant -> AssistantBubble(message.text)
-                        is AssistantMessage.Saved -> SavedRow(message.entry) { id ->
-                            onEvent(AssistantEvent.Undo(id))
-                        }
+                        is AssistantMessage.User -> UserBubble(message.text, Modifier.animateItem())
+                        is AssistantMessage.Assistant -> AssistantBubble(message.text, Modifier.animateItem())
+                        is AssistantMessage.Saved -> SavedRow(
+                            entry = message.entry,
+                            onUndo = { id -> onEvent(AssistantEvent.Undo(id)) },
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                 }
 
                 uiState.pendingResult?.let { result ->
-                    item {
+                    item(key = "pending-card") {
                         ConfirmationCard(
                             result = result,
                             categories = uiState.categories,
@@ -207,13 +223,17 @@ fun AssistantScreen(
                             onDateChange = { date -> onEvent(AssistantEvent.EditDate(date)) },
                             onConfirm = { onEvent(AssistantEvent.Confirm) },
                             onDismiss = { onEvent(AssistantEvent.DismissCard) },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
 
                 if (uiState.isParsing) {
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    item(key = "parsing") {
+                        Row(
+                            modifier = Modifier.animateItem(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.width(24.dp).height(24.dp),
                                 strokeWidth = 2.dp,
@@ -259,7 +279,7 @@ private fun TodayOverviewCard(uiState: AssistantUiState) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ComponentDefaults.cardShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -305,6 +325,10 @@ private fun TodayOverviewCard(uiState: AssistantUiState) {
                     }
                 }
             }
+            if (uiState.budgetProgress.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                BudgetProgressSection(uiState.budgetProgress)
+            }
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
             Row(
@@ -320,13 +344,18 @@ private fun TodayOverviewCard(uiState: AssistantUiState) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    text = if (expanded) "收起 ▴" else "展开 ▾",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = if (expanded) Heroicons.Outline.ChevronUp else Heroicons.Outline.ChevronDown,
+                    contentDescription = if (expanded) "收起今日已记" else "展开今日已记",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            AnimatedVisibility(visible = expanded) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(220)) + fadeIn(tween(220)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(tween(200)),
+            ) {
                 Column {
                     if (entryCount == 0) {
                         Text(
@@ -339,6 +368,79 @@ private fun TodayOverviewCard(uiState: AssistantUiState) {
                         uiState.todayEntries.forEach { entry ->
                             SummaryEntryRow(entry)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 首次进入的引导卡：一句话介绍 + 三条示例快捷输入。 */
+@Composable
+private fun WelcomeCard(onExampleSubmit: (String) -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = ComponentDefaults.cardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(TerminalCyan),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🐝", fontSize = 14.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "我是 BeeCount 记账助手",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "说一句收支就能帮你自动记下来，也可以点下面的示例试试：",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            val examples = listOf(
+                "昨天打车花了30块",
+                "老板发了500红包",
+                "早饭 12 元",
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                examples.chunked(2).forEach { rowExamples ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rowExamples.forEach { example ->
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onExampleSubmit(example) },
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ) {
+                                Text(
+                                    text = example,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                                )
+                            }
+                        }
+                        // 奇数示例时补一个占位，保持行内对齐
+                        if (rowExamples.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
@@ -404,8 +506,8 @@ private fun SummaryEntryRow(entry: Entry) {
 
 /** 用户消息：右对齐，非对称圆角（右下角收进，聊天气泡感） */
 @Composable
-private fun UserBubble(text: String) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+private fun UserBubble(text: String, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -424,16 +526,16 @@ private fun UserBubble(text: String) {
 
 /** 助手消息：带头像（🐝），非对称圆角（左下角收进） */
 @Composable
-private fun AssistantBubble(text: String) {
+private fun AssistantBubble(text: String, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(HoneyAmber),
+                .background(TerminalCyan),
             contentAlignment = Alignment.Center,
         ) {
             Text("🐝", fontSize = 14.sp)
@@ -456,9 +558,9 @@ private fun AssistantBubble(text: String) {
 }
 
 @Composable
-private fun SavedRow(entry: Entry, onUndo: (Long) -> Unit) {
+private fun SavedRow(entry: Entry, onUndo: (Long) -> Unit, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),
@@ -497,24 +599,76 @@ private fun InputBar(
             enabled = enabled,
             shape = RoundedCornerShape(24.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = HoneyAmber,
-                cursorColor = HoneyAmber,
+                focusedBorderColor = TerminalCyan,
+                cursorColor = TerminalCyan,
             ),
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(4.dp))
-        IconButton(
+        androidx.compose.material3.FilledIconButton(
             onClick = {
                 onSend(text)
                 text = ""
             },
             enabled = enabled && text.isNotBlank(),
-            colors = IconButtonDefaults.iconButtonColors(contentColor = HoneyAmber),
+            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                containerColor = TerminalCyan,
+                contentColor = OnTerminalCyan,
+            ),
         ) {
             Icon(
                 imageVector = Heroicons.Outline.PaperAirplane,
                 contentDescription = stringResource(R.string.cd_send_message),
             )
+        }
+    }
+}
+
+/**
+ * 今日页预算进度区块：展示所有启用预算的当前周期进度（进度条 + 已花/预算 + 超支红）。
+ */
+@Composable
+private fun BudgetProgressSection(progress: List<BudgetProgress>) {
+    val enabled = progress.filter { it.budget.enabled }
+    if (enabled.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        enabled.forEach { p ->
+            val dimensionName = p.budget.categoryName ?: "总预算"
+            val isOver = p.isOver
+            val fraction = p.fraction
+            val color = when {
+                isOver -> MaterialTheme.colorScheme.error
+                fraction >= 0.9 -> ExpenseRed.copy(alpha = 0.5f)
+                else -> TerminalCyan
+            }
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = dimensionName,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = if (isOver) "已超支 ¥${formatMoney(p.overAmount)}"
+                        else "¥${formatMoney(p.spent)} / ¥${formatMoney(p.base)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { fraction.toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = color,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
         }
     }
 }

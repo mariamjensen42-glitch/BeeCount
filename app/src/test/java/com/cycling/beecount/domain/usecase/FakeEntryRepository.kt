@@ -16,6 +16,7 @@ class FakeEntryRepository(
     private val entries = entries.toMutableList()
     var observedStart: LocalDate? = null
     var observedEnd: LocalDate? = null
+    var observedRanges: List<Pair<LocalDate, LocalDate>> = emptyList()
     var replaceAllCalls = 0
     var lastRestoredSnapshot: EntrySnapshot? = null
     val storedEntries: List<Entry> get() = entries
@@ -23,7 +24,8 @@ class FakeEntryRepository(
     override fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<Entry>> {
         observedStart = start
         observedEnd = end
-        return flowOf(entries)
+        observedRanges = observedRanges + (start to end)
+        return flowOf(entries.filter { it.date in start..end })
     }
 
     override fun observeEntriesOn(date: LocalDate): Flow<List<Entry>> =
@@ -38,6 +40,18 @@ class FakeEntryRepository(
     override suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long {
         entries += entry
         return entry.id
+    }
+
+    override suspend fun updateWithTags(entry: Entry, tagIds: List<Long>) {
+        val index = entries.indexOfFirst { it.id == entry.id }
+        if (index >= 0) {
+            val tags = tagIds.mapNotNull { id ->
+                entries.flatMap { it.tags }.firstOrNull { it.id == id }
+                    ?: entry.tags.firstOrNull { it.id == id }
+                    ?: error("Missing tag $id")
+            }
+            entries[index] = entry.copy(tags = tags)
+        }
     }
 
     override suspend fun delete(id: Long) {

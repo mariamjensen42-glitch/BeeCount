@@ -5,14 +5,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
-import com.cycling.beecount.domain.usecase.ConfirmEntryUseCase
-import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
-import com.cycling.beecount.domain.usecase.ObserveEntriesOnUseCase
-import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
-import com.cycling.beecount.domain.usecase.ObserveTotalsOnUseCase
-import com.cycling.beecount.domain.usecase.OcrEntryUseCase
+import com.cycling.beecount.domain.query.EntryQuery
+import com.cycling.beecount.domain.usecase.EntryIntake
 import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
-import com.cycling.beecount.domain.usecase.ParseEntryUseCase
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -31,15 +26,10 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class AssistantViewModel @Inject constructor(
-    private val parseEntryUseCase: ParseEntryUseCase,
-    private val confirmEntryUseCase: ConfirmEntryUseCase,
+    private val entryIntake: EntryIntake,
     private val undoEntryUseCase: UndoEntryUseCase,
     private val ocrImageImportUseCase: OcrImageImportUseCase,
-    private val ocrEntryUseCase: OcrEntryUseCase,
-    observeEntriesOn: ObserveEntriesOnUseCase,
-    observeTotalsOn: ObserveTotalsOnUseCase,
-    observeCategories: ObserveCategoriesUseCase,
-    observeTags: ObserveTagsUseCase,
+    private val entryQuery: EntryQuery,
 ) : ViewModel() {
 
     private val today: LocalDate = LocalDate.now()
@@ -54,23 +44,28 @@ class AssistantViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            observeEntriesOn(today).collect { entries ->
+            entryQuery.observeDay(today).collect { entries ->
                 _uiState.update { it.copy(todayEntries = entries) }
             }
         }
         viewModelScope.launch {
-            observeTotalsOn(today).collect { totals ->
+            entryQuery.observeTotals(today).collect { totals ->
                 _uiState.update { it.copy(todayTotals = totals) }
             }
         }
         viewModelScope.launch {
-            observeCategories().collect { categories ->
+            entryQuery.observeCategories().collect { categories ->
                 _uiState.update { it.copy(categories = categories) }
             }
         }
         viewModelScope.launch {
-            observeTags().collect { tags ->
+            entryQuery.observeTags().collect { tags ->
                 _uiState.update { it.copy(allTags = tags) }
+            }
+        }
+        viewModelScope.launch {
+            entryQuery.observeBudgetProgress(today).collect { progress ->
+                _uiState.update { it.copy(budgetProgress = progress) }
             }
         }
     }
@@ -116,7 +111,7 @@ class AssistantViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            handleParseOutcome(parseEntryUseCase(trimmed), originalText = trimmed)
+            handleParseOutcome(entryIntake.parse(trimmed), originalText = trimmed)
             _uiState.update { it.copy(isParsing = false) }
         }
     }
@@ -132,7 +127,7 @@ class AssistantViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
-                val entry = confirmEntryUseCase(
+                val entry = entryIntake.confirm(
                     result = result,
                     editedAmount = amount,
                     editedCategoryName = categoryName,
@@ -177,8 +172,8 @@ class AssistantViewModel @Inject constructor(
         _uiState.update { it.copy(isParsing = true) }
         viewModelScope.launch {
             try {
-                val importedUri = when (val importOutcome = ocrImageImportUseCase(uri)) {
-                    is OcrImageImportUseCase.Outcome.Imported -> importOutcome.uri
+                val importedSource = when (val importOutcome = ocrImageImportUseCase(uri)) {
+                    is OcrImageImportUseCase.Outcome.Imported -> importOutcome.source
                     is OcrImageImportUseCase.Outcome.ReadError -> {
                         logOcrError("无法复制用户选中的图片", uri, importOutcome.cause)
                         addAssistantMessage("无法访问所选图片，请重新选择一张本地图片")
@@ -186,26 +181,26 @@ class AssistantViewModel @Inject constructor(
                     }
                 }
 
-                when (val outcome = ocrEntryUseCase(importedUri)) {
-                    is OcrEntryUseCase.Outcome.RecognitionFailed -> {
+                when (val outcome = entryIntake.parseOcr(importedSource)) {
+                    is EntryIntake.OcrOutcome.RecognitionFailed -> {
                         addAssistantMessage("未能识别图片文字，请换张截图或手动输入")
                     }
 
-                    is OcrEntryUseCase.Outcome.ImageReadError -> {
-                        logOcrError("无法读取 OCR 缓存图片", importedUri, outcome.cause)
+                    is EntryIntake.OcrOutcome.ImageReadError -> {
+                        logOcrError("无法读取 OCR 缓存图片", uri, outcome.cause)
                         addAssistantMessage("无法读取所选图片，请重新选择后重试")
                     }
 
-                    is OcrEntryUseCase.Outcome.RecognitionError -> {
-                        logOcrError("图片文字识别失败", importedUri, outcome.cause)
+                    is EntryIntake.OcrOutcome.RecognitionError -> {
+                        logOcrError("图片文字识别失败", uri, outcome.cause)
                         addAssistantMessage("图片文字识别失败，请换张清晰截图后重试")
                     }
 
-                    is OcrEntryUseCase.Outcome.Parsed ->
+                    is EntryIntake.OcrOutcome.Parsed ->
                         handleParseOutcome(
                             outcome.parseOutcome,
                             // 优先用 AI 整理的简短备注，否则回退到识别原文
-                            originalText = (outcome.parseOutcome as? ParseEntryUseCase.Outcome.Success)
+                            originalText = (outcome.parseOutcome as? EntryIntake.Outcome.Success)
                                 ?.result?.note?.takeIf { it.isNotEmpty() }
                                 ?: outcome.rawText,
                         )
@@ -240,14 +235,14 @@ class AssistantViewModel @Inject constructor(
         const val OCR_LOG_TAG = "BeeCountOcr"
     }
 
-    /** 处理 [ParseEntryUseCase.Outcome]，供文字输入和 OCR 两条路径共用。*/
+    /** 处理 [EntryIntake.Outcome]，供文字输入和 OCR 两条路径共用。*/
     private fun handleParseOutcome(
-        outcome: ParseEntryUseCase.Outcome,
+        outcome: EntryIntake.Outcome,
         originalText: String,
         nonRecordableDefault: String = "我没听懂这笔账，换种说法试试？",
     ) {
         when (outcome) {
-            is ParseEntryUseCase.Outcome.Success -> {
+            is EntryIntake.Outcome.Success -> {
                 val result = outcome.result
                 _uiState.update { s ->
                     if (result.recordable) {
@@ -267,7 +262,7 @@ class AssistantViewModel @Inject constructor(
                 }
             }
 
-            ParseEntryUseCase.Outcome.KeyMissing -> {
+            EntryIntake.Outcome.KeyMissing -> {
                 _uiState.update { s ->
                     s.copy(
                         messages = s.messages + AssistantMessage.Assistant(
@@ -278,7 +273,7 @@ class AssistantViewModel @Inject constructor(
                 }
             }
 
-            is ParseEntryUseCase.Outcome.Error -> {
+            is EntryIntake.Outcome.Error -> {
                 _uiState.update { s ->
                     s.copy(
                         messages = s.messages + AssistantMessage.Assistant(

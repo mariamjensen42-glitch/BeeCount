@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,14 +60,19 @@ import com.cycling.beecount.domain.model.AnnualAnalytics
 import com.cycling.beecount.domain.model.AnnualHeatmapDay
 import com.cycling.beecount.domain.model.AnnualHighlights
 import com.cycling.beecount.domain.model.CategoryRank
+import com.cycling.beecount.domain.model.CategorySlice
+import com.cycling.beecount.domain.model.ComparisonAnalytics
 import com.cycling.beecount.domain.model.DailyExpense
 import com.cycling.beecount.domain.model.MonthlyAnalytics
 import com.cycling.beecount.domain.model.MonthlyExpensePoint
+import com.cycling.beecount.domain.model.PeriodSummary
 import com.cycling.beecount.ui.assistant.formatMoney
 import com.cycling.beecount.ui.theme.ExpenseRed
-import com.cycling.beecount.ui.theme.HoneyAmber
+import com.cycling.beecount.ui.theme.TerminalCyan
+import com.cycling.beecount.ui.theme.TerminalPurple
 import com.cycling.beecount.ui.theme.IncomeGreen
-import com.cycling.beecount.ui.theme.OnHoneyAmber
+import com.cycling.beecount.ui.theme.OnTerminalCyan
+import com.cycling.beecount.ui.theme.TerminalGreen
 import com.woowla.compose.icon.collections.heroicons.*
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronLeft
@@ -87,11 +93,13 @@ fun AnalyticsRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val monthly by viewModel.monthlyAnalytics.collectAsStateWithLifecycle()
     val annual by viewModel.annualAnalytics.collectAsStateWithLifecycle()
+    val comparison by viewModel.comparisonAnalytics.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(initialMonth) { viewModel.onEvent(AnalyticsEvent.SetMonth(initialMonth)) }
     AnalyticsScreen(
         uiState = uiState,
         monthly = monthly,
         annual = annual,
+        comparison = comparison,
         onEvent = viewModel::onEvent,
         onBack = onBack,
     )
@@ -108,6 +116,7 @@ fun AnalyticsScreen(
     uiState: AnalyticsUiState,
     monthly: MonthlyAnalytics?,
     annual: AnnualAnalytics?,
+    comparison: ComparisonAnalytics?,
     onEvent: (AnalyticsEvent) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -130,9 +139,14 @@ fun AnalyticsScreen(
         ) {
             AnalyticsHeader(uiState, onEvent)
             when (uiState.granularity) {
-                AnalyticsGranularity.MONTH -> MonthlyContent(monthly, Modifier.weight(1f))
+                AnalyticsGranularity.MONTH -> MonthlyContent(
+                    monthly = monthly,
+                    comparison = comparison,
+                    modifier = Modifier.weight(1f),
+                )
                 AnalyticsGranularity.YEAR -> AnnualContent(
                     annual = annual,
+                    comparison = comparison,
                     uiState = uiState,
                     onEvent = onEvent,
                     modifier = Modifier.weight(1f),
@@ -205,11 +219,11 @@ private fun GranularitySegment(
     onClick: () -> Unit,
 ) {
     val container by animateColorAsState(
-        targetValue = if (selected) HoneyAmber else Color.Transparent,
+        targetValue = if (selected) TerminalCyan else Color.Transparent,
         label = "granularityContainer",
     )
     val content by animateColorAsState(
-        targetValue = if (selected) OnHoneyAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (selected) OnTerminalCyan else MaterialTheme.colorScheme.onSurfaceVariant,
         label = "granularityContent",
     )
     Box(
@@ -260,7 +274,11 @@ private fun PeriodSelector(
 }
 
 @Composable
-private fun MonthlyContent(monthly: MonthlyAnalytics?, modifier: Modifier = Modifier) {
+private fun MonthlyContent(
+    monthly: MonthlyAnalytics?,
+    comparison: ComparisonAnalytics?,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 96.dp),
@@ -273,8 +291,15 @@ private fun MonthlyContent(monthly: MonthlyAnalytics?, modifier: Modifier = Modi
             item { EmptyState("这个月还没有账目，去「今日」记一笔吧") }
         } else {
             item { TotalsCard(data.expense, data.income, data.entryCount) }
+            if (comparison != null) {
+                item { ComparisonCard(comparison) }
+            }
+            item { SpendingComparisonCard(data.expense, data.income) }
             if (data.categoryRanks.isNotEmpty()) {
                 item { RankingCard(data.categoryRanks) }
+            }
+            if (data.categoryRanks.isNotEmpty()) {
+                item { CategoryDonutCard(data.categoryRanks) }
             }
             item { DailyTrendCard(data.dailyExpense, data.maxDaily) }
         }
@@ -284,6 +309,7 @@ private fun MonthlyContent(monthly: MonthlyAnalytics?, modifier: Modifier = Modi
 @Composable
 private fun AnnualContent(
     annual: AnnualAnalytics?,
+    comparison: ComparisonAnalytics?,
     uiState: AnalyticsUiState,
     onEvent: (AnalyticsEvent) -> Unit,
     modifier: Modifier = Modifier,
@@ -303,8 +329,14 @@ private fun AnnualContent(
             }
         } else {
             item { TotalsCard(data.expense, data.income, data.entryCount) }
+            if (comparison != null) {
+                item { ComparisonCard(comparison) }
+            }
             if (data.categoryRanks.isNotEmpty()) {
                 item { RankingCard(data.categoryRanks) }
+            }
+            if (data.categoryRanks.isNotEmpty()) {
+                item { CategoryDonutCard(data.categoryRanks) }
             }
             item { YearTrendCard(data.monthlyExpense) }
             item {
@@ -416,7 +448,7 @@ private fun RankRow(rank: CategoryRank, maxAmount: Double) {
                     .fillMaxHeight()
                     .fillMaxWidth(fraction)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(HoneyAmber),
+                    .background(TerminalCyan),
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -700,3 +732,223 @@ private fun HighlightCell(label: String, value: String, modifier: Modifier = Mod
         )
     }
 }
+
+/** 时间段对比卡：当前期间 vs 上一期间，展示支出/收入变化与同比/环比百分比 */
+@Composable
+private fun ComparisonCard(comparison: ComparisonAnalytics) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("时间段对比", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            ComparisonRow(comparison.currentLabel, comparison.current, comparison.previousLabel, comparison.previous)
+        }
+    }
+}
+
+@Composable
+private fun ComparisonRow(
+    currentLabel: String,
+    current: PeriodSummary,
+    previousLabel: String,
+    previous: PeriodSummary,
+) {
+    val expenseDelta = percentChange(current.expense, previous.expense)
+    val incomeDelta = percentChange(current.income, previous.income)
+    Column {
+        ComparisonText(
+            currentLabel = currentLabel,
+            previousLabel = previousLabel,
+            title = "支出",
+            current = current.expense,
+            previous = previous.expense,
+            delta = expenseDelta,
+            color = ExpenseRed,
+        )
+        Spacer(Modifier.height(10.dp))
+        ComparisonText(
+            currentLabel = currentLabel,
+            previousLabel = previousLabel,
+            title = "收入",
+            current = current.income,
+            previous = previous.income,
+            delta = incomeDelta,
+            color = IncomeGreen,
+        )
+    }
+}
+
+@Composable
+private fun ComparisonText(
+    currentLabel: String,
+    previousLabel: String,
+    title: String,
+    current: Double,
+    previous: Double,
+    delta: Float?,
+    color: Color,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(40.dp))
+        Column(Modifier.weight(1f)) {
+            Text("$currentLabel ¥${formatMoney(current)}", style = MaterialTheme.typography.bodyMedium, color = color)
+            Text("$previousLabel ¥${formatMoney(previous)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        val deltaText = if (delta == null) {
+            "—"
+        } else {
+            val prefix = if (delta > 0) "+" else ""
+            "$prefix${"%.1f".format(delta)}%"
+        }
+        val deltaColor = when {
+            delta == null -> MaterialTheme.colorScheme.onSurfaceVariant
+            delta > 0 -> ExpenseRed
+            delta < 0 -> IncomeGreen
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Text(deltaText, style = MaterialTheme.typography.bodyMedium, color = deltaColor)
+    }
+}
+
+private fun percentChange(current: Double, previous: Double): Float? {
+    if (previous == 0.0) return null
+    return ((current - previous) / previous * 100).toFloat()
+}
+
+/** 收支对比柱状图：当前期间支出/收入两根柱，与上一期间对比（净变化） */
+@Composable
+private fun SpendingComparisonCard(expense: Double, income: Double) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("收支对比", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            val maxBar = maxOf(expense, income).coerceAtLeast(1.0)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                BarColumn("支出", expense, ExpenseRed, maxBar, Modifier.weight(1f))
+                Spacer(Modifier.width(24.dp))
+                BarColumn("收入", income, IncomeGreen, maxBar, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarColumn(label: String, value: Double, barColor: Color, maxBar: Double, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("¥${formatMoney(value)}", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .height(120.dp)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight((value / maxBar).toFloat())
+                    .background(barColor, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** 分类占比环形图：由分类排行数据绘制 donut，中心显示总支出 */
+@Composable
+private fun CategoryDonutCard(ranks: List<CategoryRank>) {
+    val total = ranks.sumOf { it.amount }
+    if (total <= 0.0) return
+    val slices = ranks.map { CategorySlice(it.name, it.amount, (it.amount / total).toFloat()) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("分类占比", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DonutChart(slices, Modifier.size(160.dp), centerText = "¥${formatMoney(total)}")
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    slices.forEachIndexed { index, slice ->
+                        DonutLegendRow(slice, index)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DonutChart(slices: List<CategorySlice>, modifier: Modifier = Modifier, centerText: String) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val strokeWidth = 28.dp.toPx()
+            val diameter = size.minDimension - strokeWidth
+            val center = Offset(size.width / 2, size.height / 2)
+            var startAngle = -90f
+            slices.forEachIndexed { index, slice ->
+                val sweep = slice.fraction * 360f
+                drawArc(
+                    color = paletteColor(index),
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(center.x - diameter / 2, center.y - diameter / 2),
+                    size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                    style = Stroke(width = strokeWidth),
+                )
+                startAngle += sweep
+            }
+        }
+        Text(centerText, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun DonutLegendRow(slice: CategorySlice, index: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(paletteColor(index), RoundedCornerShape(2.dp)),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(slice.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("${(slice.fraction * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** 环形图配色：与分类排行条形同风格，但为 donut 提供连续可区分色板 */
+private fun paletteColor(index: Int): Color {
+    return PaletteColors[index % PaletteColors.size]
+}
+
+private val PaletteColors = listOf(
+    TerminalCyan,
+    ExpenseRed,
+    IncomeGreen,
+    TerminalPurple,
+    TerminalGreen,
+    Color(0xFF8D6E63),
+    Color(0xFF9575CD),
+    Color(0xFF4FC3F7),
+)

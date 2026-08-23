@@ -10,6 +10,7 @@ import javax.inject.Inject
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Document
 import org.w3c.dom.Element
+import timber.log.Timber
 
 /**
  * 微信支付账单 xlsx 的最小解析器（ADR 0012）。
@@ -24,6 +25,7 @@ import org.w3c.dom.Element
 class WeChatBillXlsxParser @Inject constructor() {
 
     fun parse(input: InputStream): WeChatBill {
+        Timber.d("开始解析微信账单 xlsx")
         val sharedStrings = mutableListOf<String>()
         var sheetDocument: Document? = null
         ZipInputStream(input.buffered()).use { zip ->
@@ -40,7 +42,11 @@ class WeChatBillXlsxParser @Inject constructor() {
                 entry = zip.nextEntry
             }
         }
-        val sheet = sheetDocument ?: throw WeChatBillParseException("无法识别的账单格式")
+        val sheet = sheetDocument ?: run {
+            Timber.w("xlsx 中未找到 sheet1.xml，无法识别账单格式")
+            throw WeChatBillParseException("无法识别的账单格式")
+        }
+        Timber.d("xlsx 解析完成：sharedStrings=%d 个", sharedStrings.size)
         return WeChatBill(rows = parseRows(sheet, sharedStrings))
     }
 
@@ -73,7 +79,11 @@ class WeChatBillXlsxParser @Inject constructor() {
                 break
             }
         }
-        if (headerIndex < 0) throw WeChatBillParseException("无法识别的账单格式")
+        if (headerIndex < 0) {
+            Timber.w("xlsx 中未找到匹配的 11 列头行")
+            throw WeChatBillParseException("无法识别的账单格式")
+        }
+        Timber.d("找到列头行，index=%d，共 %d 行", headerIndex, rowElements.length)
 
         val rows = mutableListOf<WeChatBillRow>()
         for (i in headerIndex + 1 until rowElements.length) {
@@ -97,6 +107,8 @@ class WeChatBillXlsxParser @Inject constructor() {
                 sourceRef = cells[COLUMN_SOURCE_REF].orEmpty().trim(),
             )
         }
+        Timber.d("xlsx 数据行解析完成：%d 行", rows.size)
+        if (rows.isEmpty()) Timber.w("xlsx 解析结果为 0 行")
         return rows
     }
 
@@ -148,6 +160,7 @@ class WeChatBillXlsxParser @Inject constructor() {
         DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(input)
     } catch (e: Exception) {
         // 文件不是合法 XML（或完全空文件）时统一按不可识别的账单处理
+        Timber.w(e, "xlsx 内部 XML 解析失败：%s", e.message)
         throw WeChatBillParseException("无法识别的账单格式")
     }
 

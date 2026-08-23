@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.cycling.beecount.BeeCountApplication
 import com.cycling.beecount.data.local.BeeCountDatabase
+import com.cycling.beecount.data.local.BudgetDao
 import com.cycling.beecount.data.local.CategoryDao
 import com.cycling.beecount.data.local.EntryDao
 import com.cycling.beecount.data.local.TagDao
@@ -49,6 +50,9 @@ object AppModule {
 
     @Provides
     fun provideTagDao(db: BeeCountDatabase): TagDao = db.tagDao()
+
+    @Provides
+    fun provideBudgetDao(db: BeeCountDatabase): BudgetDao = db.budgetDao()
 
     /** 桌面小组件刷新器：账目写操作后触发全部 widget 实例更新（ADR 0013） */
     @Provides

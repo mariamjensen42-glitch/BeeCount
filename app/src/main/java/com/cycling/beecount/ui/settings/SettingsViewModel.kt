@@ -3,6 +3,7 @@ package com.cycling.beecount.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cycling.beecount.domain.query.EntryQuery
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.usecase.ClearAllEntriesUseCase
 import com.cycling.beecount.domain.usecase.ExportEntriesCsvUseCase
@@ -10,8 +11,6 @@ import com.cycling.beecount.domain.usecase.FillDemoDataUseCase
 import com.cycling.beecount.domain.usecase.ImportWeChatBillUseCase
 import com.cycling.beecount.domain.usecase.ManageCategoryUseCase
 import com.cycling.beecount.domain.usecase.ManageTagUseCase
-import com.cycling.beecount.domain.usecase.ObserveCategoriesUseCase
-import com.cycling.beecount.domain.usecase.ObserveTagsUseCase
 import com.cycling.beecount.domain.usecase.ParseWeChatBillUseCase
 import com.cycling.beecount.domain.usecase.UndoWeChatImportUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,8 +40,7 @@ class SettingsViewModel @Inject constructor(
     private val parseWeChatBillUseCase: ParseWeChatBillUseCase,
     private val importWeChatBillUseCase: ImportWeChatBillUseCase,
     private val undoWeChatImportUseCase: UndoWeChatImportUseCase,
-    observeCategories: ObserveCategoriesUseCase,
-    observeTags: ObserveTagsUseCase,
+    private val entryQuery: EntryQuery,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -55,12 +53,12 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            observeCategories().collect { categories ->
+            entryQuery.observeCategories().collect { categories ->
                 _uiState.update { it.copy(categories = categories) }
             }
         }
         viewModelScope.launch {
-            observeTags().collect { tags ->
+            entryQuery.observeTags().collect { tags ->
                 _uiState.update { it.copy(tags = tags) }
             }
         }
@@ -82,11 +80,29 @@ class SettingsViewModel @Inject constructor(
             is SettingsEvent.CreateCategory ->
                 launchManage { manageCategoryUseCase.create(event.name, event.type) }
 
+            is SettingsEvent.CreateChildCategory ->
+                launchManage { manageCategoryUseCase.createChild(event.parentId, event.name) }
+
             is SettingsEvent.RenameCategory ->
                 launchManage { manageCategoryUseCase.rename(event.id, event.name) }
 
-            is SettingsEvent.DeleteCategory ->
-                launchManage { manageCategoryUseCase.delete(event.id) }
+            is SettingsEvent.DeleteCategoryWithMerge ->
+                launchManage { manageCategoryUseCase.deleteWithMerge(event.id, event.targetId) }
+
+            is SettingsEvent.MoveCategoryParent ->
+                launchManage { manageCategoryUseCase.moveParent(event.id, event.parentId) }
+
+            is SettingsEvent.UpdateCategoryIcon ->
+                launchManage { manageCategoryUseCase.updateIcon(event.id, event.icon) }
+
+            is SettingsEvent.UpdateCategoryColor ->
+                launchManage { manageCategoryUseCase.updateColor(event.id, event.color) }
+
+            is SettingsEvent.UpdateCategorySortOrder ->
+                launchManage { manageCategoryUseCase.updateSortOrder(event.id, event.sortOrder) }
+
+            is SettingsEvent.UpdateCategoryHidden ->
+                launchManage { manageCategoryUseCase.updateHidden(event.id, event.isHidden) }
 
             is SettingsEvent.RenameTag ->
                 launchManage { manageTagUseCase.rename(event.id, event.name) }

@@ -8,6 +8,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Relation
 import androidx.room.Transaction
+import androidx.room.Update
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.repository.EntrySnapshot
@@ -48,10 +49,14 @@ interface EntryDao {
     @Query("SELECT * FROM entries ORDER BY date DESC, createdAt DESC")
     fun observeAllWithTags(): Flow<List<EntryWithTags>>
 
-    /** 图表页：观察 [start, end] 区间内的账目（时间正序，带各自标签，ADR 0009） */
+    /** 观察指定区间账目（时间正序，带各自标签，ADR 0009） */
     @Transaction
     @Query("SELECT * FROM entries WHERE date BETWEEN :start AND :end ORDER BY date ASC, createdAt ASC")
     fun observeBetween(start: LocalDate, end: LocalDate): Flow<List<EntryWithTags>>
+
+    /** 预算进度用：轻量观察全部账目（仅需消费统计的字段），避免拉取完整行与标签关联 */
+    @Query("SELECT date, type, categoryName, amount FROM entries")
+    fun observeLightAll(): Flow<List<EntryLightRow>>
 
     @Insert
     suspend fun insert(entry: EntryEntity): Long
@@ -101,6 +106,23 @@ interface EntryDao {
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Update
+    suspend fun update(entry: EntryEntity)
+
+    /** 删除某账目的全部标签关联（编辑替换标签用） */
+    @Query("DELETE FROM entry_tags WHERE entryId = :entryId")
+    suspend fun deleteTagsForEntry(entryId: Long)
+
+    /** 更新账目并整体替换其标签关联，同事务（编辑已有账目） */
+    @Transaction
+    suspend fun updateWithTags(entry: EntryEntity, tagIds: List<Long>) {
+        update(entry)
+        deleteTagsForEntry(entry.id)
+        tagIds.distinct().forEach { tagId ->
+            insertEntryTag(EntryTagEntity(entryId = entry.id, tagId = tagId))
+        }
+    }
+
     @Transaction
     suspend fun deleteWithSnapshot(id: Long): EntrySnapshotRow? {
         val entry = findWithTagsById(id) ?: return null
@@ -134,11 +156,49 @@ interface EntryDao {
     @Query("DELETE FROM entries")
     suspend fun clearAll()
 
+    /** 各类别当前账目笔数（按类别名快照精确统计），供「按使用频率排序」用 */
+    @Query("SELECT categoryName AS name, COUNT(*) AS cnt FROM entries GROUP BY categoryName")
+    fun observeCategoryUsageCounts(): Flow<List<CategoryUsageCount>>
+
+    /**
+     * 把某类别名的账目快照改写为 [newName]（精确匹配，用于删除归并与单类别重命名）。
+     */
+    @Query("UPDATE entries SET categoryName = :newName WHERE categoryName = :oldName")
+    suspend fun remapCategoryNameExact(oldName: String, newName: String)
+
+    /**
+     * 把以 [oldPrefix] 开头的账目类别快照前缀改写为 [newPrefix]（保留「·」后的子树段）。
+     * 用于一级分类改名时级联其子分类的账目快照（「餐饮·外卖」→「餐饮点心·外卖」）。
+     * 要求 oldPrefix 与 newPrefix 都以「·」结尾。
+     */
+    @Query(
+        """
+        UPDATE entries
+        SET categoryName = :newPrefix || substr(categoryName, length(:oldPrefix) + 1)
+        WHERE categoryName LIKE :oldPrefix || '%' AND length(categoryName) > length(:oldPrefix)
+        """
+    )
+    suspend fun remapCategoryNamePrefix(oldPrefix: String, newPrefix: String)
+
     data class TotalsRow(
         val expense: Double,
         val income: Double,
     )
 }
+
+/** 类别使用频率：类别名（账目快照）→ 账目笔数 */
+data class CategoryUsageCount(
+    val name: String,
+    val cnt: Int,
+)
+
+/** 预算统计用的轻量账目行（只含消费相关字段） */
+data class EntryLightRow(
+    val date: LocalDate,
+    val type: String,
+    val categoryName: String,
+    val amount: Double,
+)
 
 fun EntryDao.TotalsRow.toDomain(): TodayTotals = TodayTotals(
     expense = expense,
@@ -184,6 +244,7 @@ fun EntrySnapshotRow.toDomain(): EntrySnapshot = EntrySnapshot(
         createdAt = entry.createdAt,
         tags = tags.map { it.toDomain() },
         sourceRef = entry.sourceRef,
+        counterparty = entry.counterparty,
     ),
     tagIds = tagIds,
 )
@@ -205,6 +266,7 @@ fun EntryWithTags.toDomain(): Entry = Entry(
     createdAt = entry.createdAt,
     tags = tags.map { it.toDomain() },
     sourceRef = entry.sourceRef,
+    counterparty = entry.counterparty,
 )
 
 @Dao
@@ -230,8 +292,15 @@ interface TagDao {
 @Dao
 interface CategoryDao {
 
-    @Query("SELECT * FROM categories ORDER BY type, id")
+    @Query("SELECT * FROM categories")
     fun observeAll(): Flow<List<CategoryEntity>>
+
+    /** 一次性读取全表（排序/重命名/删除时同步决策用） */
+    @Query("SELECT * FROM categories")
+    suspend fun getAll(): List<CategoryEntity>
+
+    @Query("SELECT * FROM categories WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): CategoryEntity?
 
     @Insert
     suspend fun insert(category: CategoryEntity): Long
@@ -239,7 +308,22 @@ interface CategoryDao {
     @Query("UPDATE categories SET name = :name WHERE id = :id")
     suspend fun rename(id: Long, name: String)
 
-    /** 删除类别：账目存的是类别名快照，已有账目不受影响 */
+    @Query("UPDATE categories SET parentId = :parentId WHERE id = :id")
+    suspend fun updateParent(id: Long, parentId: Long?)
+
+    @Query("UPDATE categories SET icon = :icon WHERE id = :id")
+    suspend fun updateIcon(id: Long, icon: String)
+
+    @Query("UPDATE categories SET color = :color WHERE id = :id")
+    suspend fun updateColor(id: Long, color: Long)
+
+    @Query("UPDATE categories SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    @Query("UPDATE categories SET isHidden = :isHidden WHERE id = :id")
+    suspend fun updateHidden(id: Long, isHidden: Boolean)
+
+    /** 删除类别；账目存的是类别名快照，已有账目不受影响（历史归并在仓库层处理） */
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

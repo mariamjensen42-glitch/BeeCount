@@ -56,16 +56,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.cycling.beecount.domain.model.Category
-import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.usecase.WeChatImportPreview
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
-import com.cycling.beecount.ui.common.TagManageSheet
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.AdjustmentsHorizontal
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowDownTray
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ArrowUpTray
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChartBar
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronRight
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.CpuChip
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.InformationCircle
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Key
@@ -79,12 +78,20 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsRoute(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    onOpenCategoryManage: () -> Unit,
+    onOpenTagManage: () -> Unit,
+    onOpenBudgetManage: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     SettingsScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
         exportCsv = viewModel::exportCsv,
+        onOpenCategoryManage = onOpenCategoryManage,
+        onOpenTagManage = onOpenTagManage,
+        onOpenBudgetManage = onOpenBudgetManage,
     )
 }
 
@@ -94,13 +101,14 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onEvent: (SettingsEvent) -> Unit,
     exportCsv: suspend () -> String?,
+    onOpenCategoryManage: () -> Unit,
+    onOpenTagManage: () -> Unit,
+    onOpenBudgetManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showKeyDialog by remember { mutableStateOf(false) }
-    var showCategoryDialog by remember { mutableStateOf(false) }
-    var showTagDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showDemoConfirm by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -176,12 +184,11 @@ fun SettingsScreen(
             )
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
-            HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-
             // 管理
             SettingsSectionHeader("管理")
-            SettingsRow("管理类别", subtitle = "新增 / 改名 / 删除", icon = Heroicons.Outline.Squares2x2, onClick = { showCategoryDialog = true })
-            SettingsRow("管理标签", subtitle = "改名 / 改色 / 删除", icon = Heroicons.Outline.Tag, onClick = { showTagDialog = true })
+            SettingsRow("管理类别", subtitle = "新增 / 子分类 / 排序 / 图标 / 删除归并", icon = Heroicons.Outline.Squares2x2, onClick = onOpenCategoryManage)
+            SettingsRow("管理标签", subtitle = "改名 / 改色 / 删除", icon = Heroicons.Outline.Tag, onClick = onOpenTagManage)
+            SettingsRow("管理预算", subtitle = "月度/年度/自定义周期 · 分类预算 · 结余结转", icon = Heroicons.Outline.ChartBar, onClick = onOpenBudgetManage)
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
             // 数据
@@ -221,7 +228,7 @@ fun SettingsScreen(
             // 关于
             SettingsSectionHeader("关于")
             SettingsRow("版本", subtitle = appVersionName(context), icon = Heroicons.Outline.InformationCircle)
-            SettingsRow("字体", subtitle = "霞鹜文楷 Lite（SIL OFL 1.1）", icon = Heroicons.Outline.AdjustmentsHorizontal)
+            SettingsRow("字体", subtitle = "终端等宽（系统 Monospace）", icon = Heroicons.Outline.AdjustmentsHorizontal)
             SettingsRow("AI 模型", subtitle = "DeepSeek · deepseek-v4-flash", icon = Heroicons.Outline.CpuChip)
         }
     }
@@ -233,24 +240,6 @@ fun SettingsScreen(
                 showKeyDialog = false
             },
             onDismiss = { showKeyDialog = false },
-        )
-    }
-    if (showCategoryDialog) {
-        CategoryManageDialog(
-            categories = uiState.categories,
-            onClose = { showCategoryDialog = false },
-            onCreate = { name, type -> onEvent(SettingsEvent.CreateCategory(name, type)) },
-            onRename = { id, name -> onEvent(SettingsEvent.RenameCategory(id, name)) },
-            onDelete = { id -> onEvent(SettingsEvent.DeleteCategory(id)) },
-        )
-    }
-    if (showTagDialog) {
-        TagManageSheet(
-            tags = uiState.tags,
-            onClose = { showTagDialog = false },
-            onRename = { id, name -> onEvent(SettingsEvent.RenameTag(id, name)) },
-            onUpdateColor = { id, color -> onEvent(SettingsEvent.UpdateTagColor(id, color)) },
-            onDelete = { id -> onEvent(SettingsEvent.DeleteTag(id)) },
         )
     }
     if (showDemoConfirm) {
@@ -366,10 +355,11 @@ private fun SettingsRow(
         }
         trailing?.invoke()
         if (showChevron) {
-            Text(
-                "›",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(
+                imageVector = Heroicons.Outline.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -427,132 +417,6 @@ private fun ApiKeyEditDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
-}
-
-/**
- * 类别管理底部弹层：支出/收入分组，支持新增、改名、删除。
- * 删除类别不影响已有账目（账目存的是类别名快照，ADR 0008）。
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CategoryManageDialog(
-    categories: List<Category>,
-    onClose: () -> Unit,
-    onCreate: (name: String, type: EntryType) -> Unit,
-    onRename: (id: Long, name: String) -> Unit,
-    onDelete: (id: Long) -> Unit,
-) {
-    var newName by remember { mutableStateOf("") }
-    var newType by remember { mutableStateOf(EntryType.EXPENSE) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onClose, sheetState = sheetState) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp),
-        ) {
-            Text("管理类别", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "○ 预定义 / ● 自定义。删除类别不影响已有账目。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            // 新增类别
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = { newType = EntryType.EXPENSE },
-                    enabled = newType != EntryType.EXPENSE,
-                ) { Text("支出") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(
-                    onClick = { newType = EntryType.INCOME },
-                    enabled = newType != EntryType.INCOME,
-                ) { Text("收入") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("新类别名") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    onClick = {
-                        val name = newName.trim()
-                        if (name.isNotEmpty()) onCreate(name, newType)
-                        newName = ""
-                    },
-                ) { Text("添加") }
-            }
-            Spacer(Modifier.height(8.dp))
-            // 类别列表（限高滚动）
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                listOf(EntryType.EXPENSE, EntryType.INCOME).forEach { type ->
-                    Text(
-                        text = if (type == EntryType.EXPENSE) "支出类别" else "收入类别",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                    )
-                    categories.filter { it.type == type }.forEach { category ->
-                        CategoryManageRow(category, onRename, onDelete)
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = onClose) { Text("完成") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategoryManageRow(
-    category: Category,
-    onRename: (id: Long, name: String) -> Unit,
-    onDelete: (id: Long) -> Unit,
-) {
-    var nameText by remember(category.id) { mutableStateOf(category.name) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            if (category.isCustom) "●" else "○",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.width(8.dp))
-        OutlinedTextField(
-            value = nameText,
-            onValueChange = { nameText = it },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-            textStyle = MaterialTheme.typography.bodyMedium,
-        )
-        TextButton(
-            onClick = {
-                val name = nameText.trim()
-                if (name.isNotEmpty() && name != category.name) {
-                    onRename(category.id, name)
-                }
-            },
-        ) { Text("改名") }
-        TextButton(onClick = { onDelete(category.id) }) { Text("删除") }
-    }
 }
 
 private fun shareCsv(context: Context, csv: String) {

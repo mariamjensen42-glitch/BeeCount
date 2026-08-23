@@ -1,7 +1,9 @@
 package com.cycling.beecount.domain.usecase
 
 import com.cycling.beecount.domain.model.AnnualHeatmapDay
+import com.cycling.beecount.domain.model.CategoryBreakdown
 import com.cycling.beecount.domain.model.CategoryRank
+import com.cycling.beecount.domain.model.CategorySlice
 import com.cycling.beecount.domain.model.DailyExpense
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
@@ -86,5 +88,23 @@ internal object AnalyticsAggregator {
         val daysWithExpense = expenseEntries.map { it.date }.distinct().size
         if (daysWithExpense == 0) return 0.0
         return expenseEntries.sumOf { it.amount } / daysWithExpense
+    }
+
+    /** 分类占比（饼图/环形图）：按支出分类合计，金额降序，每片带占比 */
+    fun categoryBreakdown(entries: List<Entry>): CategoryBreakdown {
+        val expenseEntries = entries.filter { it.type == EntryType.EXPENSE }
+        val total = expenseEntries.sumOf { it.amount }
+        if (total == 0.0) return CategoryBreakdown(0.0, emptyList())
+        val ranks = expenseRanks(entries)
+        return CategoryBreakdown(
+            total = total,
+            slices = ranks.map { rank ->
+                CategorySlice(
+                    name = rank.name,
+                    amount = rank.amount,
+                    fraction = (rank.amount / total).toFloat(),
+                )
+            },
+        )
     }
 }

@@ -75,3 +75,34 @@ data class AnnualAnalytics(
     val dailyHeatmap: List<AnnualHeatmapDay>,
     val highlights: AnnualHighlights,
 )
+
+/** 时间段对比的一个周期摘要 */
+data class PeriodSummary(
+    val expense: Double,
+    val income: Double,
+    val entryCount: Int,
+)
+
+/** 时间段对比：当前期间 vs 上一个期间（月度=本月 vs 上月，年度=本年 vs 去年） */
+data class ComparisonAnalytics(
+    /** 当前期间标签，如「2026年8月」 */
+    val currentLabel: String,
+    /** 对比期间标签，如「2026年7月」 */
+    val previousLabel: String,
+    val current: PeriodSummary,
+    val previous: PeriodSummary,
+)
+
+/** 分类占比扇区：用于环形图的单个分类 */
+data class CategorySlice(
+    val name: String,
+    val amount: Double,
+    /** 占该区间总支出比例（0..1） */
+    val fraction: Float,
+)
+
+/** 分类占比（饼图/环形图）聚合结果 */
+data class CategoryBreakdown(
+    val total: Double,
+    val slices: List<CategorySlice>,
+)

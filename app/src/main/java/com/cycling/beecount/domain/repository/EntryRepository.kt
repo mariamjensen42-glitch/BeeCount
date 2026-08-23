@@ -27,6 +27,9 @@ interface EntryRepository {
     /** 入库账目并写入标签关联，同事务 */
     suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long
 
+    /** 更新已有账目（主键匹配）并整体替换其标签关联，同事务 */
+    suspend fun updateWithTags(entry: Entry, tagIds: List<Long>)
+
     suspend fun delete(id: Long)
 
     /** 删除账目并返回可恢复的完整快照。实现必须保证删除与快照读取在同一事务内完成。 */

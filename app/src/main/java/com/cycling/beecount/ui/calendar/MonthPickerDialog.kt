@@ -19,7 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.cycling.beecount.ui.theme.HoneyAmber
+import com.cycling.beecount.ui.theme.TerminalCyan
 import com.woowla.compose.icon.collections.heroicons.Heroicons
 import com.woowla.compose.icon.collections.heroicons.heroicons.*
 import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
@@ -50,7 +50,7 @@ fun MonthPickerDialog(
                         row.forEach { month ->
                             val target = YearMonth.of(year, month)
                             TextButton(onClick = { onSelect(target) }, modifier = Modifier.weight(1f)) {
-                                Text("${month}月", color = if (target == selectedMonth) HoneyAmber else MaterialTheme.colorScheme.onSurface)
+                                Text("${month}月", color = if (target == selectedMonth) TerminalCyan else MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }

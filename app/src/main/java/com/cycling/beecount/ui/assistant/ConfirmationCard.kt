@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,7 +68,7 @@ fun ConfirmationCard(
     modifier: Modifier = Modifier,
 ) {
     val type = result.type ?: EntryType.EXPENSE
-    val typeCategories = categories.filter { it.type == type }
+    val typeCategories = categories.filter { it.type == type && !it.isHidden }
 
     var amountText by remember {
         mutableStateOf(result.amount?.let { formatMoney(it) } ?: "")
@@ -104,7 +105,12 @@ fun ConfirmationCard(
         }
     }
 
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -152,7 +158,19 @@ fun ConfirmationCard(
                             categoryText = category.name
                             onCategoryChange(category.name)
                         },
-                        label = { Text(category.name) },
+                        leadingIcon = {
+                            if (category.icon.isNotEmpty()) {
+                                Text(category.icon)
+                            } else {
+                                Box(
+                                    Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(category.color))
+                                )
+                            }
+                        },
+                        label = { Text(category.displayName) },
                     )
                 }
             }
@@ -228,6 +246,13 @@ fun ConfirmationCard(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable { showDatePicker = true },
             )
+            result.counterparty?.let { counterparty ->
+                Text(
+                    text = "交易对方：$counterparty",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 text = "备注：$originalText",
                 style = MaterialTheme.typography.bodyMedium,
@@ -248,12 +273,12 @@ fun ConfirmationCard(
     }
 }
 
-private const val MILLIS_PER_DAY = 86_400_000L
+internal const val MILLIS_PER_DAY = 86_400_000L
 
-private fun LocalDate.toUtcMillis(): Long =
+internal fun LocalDate.toUtcMillis(): Long =
     atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
-private class PastAndPresentDates(
+internal class PastAndPresentDates(
     private val latestDate: LocalDate,
 ) : SelectableDates {
     override fun isSelectableDate(utcTimeMillis: Long): Boolean =

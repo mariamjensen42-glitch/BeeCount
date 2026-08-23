@@ -56,9 +56,24 @@ sealed interface SettingsEvent {
 
     data class CreateCategory(val name: String, val type: EntryType) : SettingsEvent
 
+    data class CreateChildCategory(val parentId: Long, val name: String) : SettingsEvent
+
     data class RenameCategory(val id: Long, val name: String) : SettingsEvent
 
-    data class DeleteCategory(val id: Long) : SettingsEvent
+    /** 删除类别并把历史账目（含子分类）归并到 [targetId] */
+    data class DeleteCategoryWithMerge(val id: Long, val targetId: Long) : SettingsEvent
+
+    /** 调整分类父级：折为一级分类传 [parentId] = null */
+    data class MoveCategoryParent(val id: Long, val parentId: Long?) : SettingsEvent
+
+    data class UpdateCategoryIcon(val id: Long, val icon: String) : SettingsEvent
+
+    data class UpdateCategoryColor(val id: Long, val color: Long) : SettingsEvent
+
+    /** 手动排序序号；0 表示回到「按使用频率自动排序」 */
+    data class UpdateCategorySortOrder(val id: Long, val sortOrder: Int) : SettingsEvent
+
+    data class UpdateCategoryHidden(val id: Long, val isHidden: Boolean) : SettingsEvent
 
     data class RenameTag(val id: Long, val name: String) : SettingsEvent
 

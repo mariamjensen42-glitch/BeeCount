@@ -25,6 +25,8 @@ data class EntryEntity(
     val note: String,
     val createdAt: Long,
     val sourceRef: String? = null,
+    /** 交易对方，微信导入来自账单行，其余记账可识别时写入，否则 null */
+    val counterparty: String? = null,
 )
 
 fun EntryEntity.toDomain(): Entry = Entry(
@@ -37,6 +39,7 @@ fun EntryEntity.toDomain(): Entry = Entry(
     note = note,
     createdAt = createdAt,
     sourceRef = sourceRef,
+    counterparty = counterparty,
 )
 
 fun Entry.toEntity(): EntryEntity = EntryEntity(
@@ -49,4 +52,5 @@ fun Entry.toEntity(): EntryEntity = EntryEntity(
     note = note,
     createdAt = createdAt,
     sourceRef = sourceRef,
+    counterparty = counterparty,
 )

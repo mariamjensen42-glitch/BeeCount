@@ -30,7 +30,7 @@ import com.cycling.beecount.MainActivity
 import com.cycling.beecount.ui.assistant.formatMoney
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.IncomeGreen
-import com.cycling.beecount.ui.theme.OnWarmGrey
+import com.cycling.beecount.ui.theme.OnTerminalGrey
 import com.cycling.beecount.ui.theme.SurfaceContainer
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -130,8 +130,8 @@ private fun StatCell(
 /** 深色卡片底：与 App 内 M3 表面容器同色（ui.theme.SurfaceContainer） */
 private val WidgetCardBackground = SurfaceContainer
 
-/** 标签用次级文字色（ui.theme.OnWarmGrey） */
-private val WidgetLabelColor = OnWarmGrey
+/** 标签用次级文字色（ui.theme.OnTerminalGrey） */
+private val WidgetLabelColor = OnTerminalGrey
 
 /** 中尺寸阈值：宽 ≥ 240dp 且高 ≥ 90dp 视为 4×2 四宫格，否则按 2×1 一行两列 */
 private val MEDIUM_WIDTH_THRESHOLD = 240.dp

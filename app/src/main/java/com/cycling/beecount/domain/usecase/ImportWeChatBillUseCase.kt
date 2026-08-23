@@ -9,6 +9,7 @@ import com.cycling.beecount.domain.repository.TagRepository
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
+import timber.log.Timber
 
 /**
  * 用例：微信账单导入的去重预览与一次性入库（ADR 0012）。
@@ -26,8 +27,10 @@ class ImportWeChatBillUseCase @Inject constructor(
 ) {
 
     suspend fun preview(draft: WeChatImportDraft): WeChatImportPreview {
+        Timber.d("微信导入预览：草案 %d 条", draft.entries.size)
         val existing = entryRepository.findExistingSourceRefs(draft.entries.map { it.sourceRef })
         val newEntries = draft.entries.filter { it.sourceRef !in existing }
+        Timber.d("微信导入预览：已有 %d 条去重命中，新增 %d 条", existing.size, newEntries.size)
         return WeChatImportPreview(
             from = newEntries.minOfOrNull { it.date } ?: draft.entries.minOfOrNull { it.date },
             to = newEntries.maxOfOrNull { it.date } ?: draft.entries.maxOfOrNull { it.date },
@@ -43,14 +46,17 @@ class ImportWeChatBillUseCase @Inject constructor(
     }
 
     suspend fun confirm(draft: WeChatImportDraft): WeChatImportResult {
+        Timber.d("微信导入确认开始：草案 %d 条", draft.entries.size)
         val existing = entryRepository.findExistingSourceRefs(draft.entries.map { it.sourceRef })
         val fresh = draft.entries.filter { it.sourceRef !in existing }
+        Timber.d("微信导入确认：去重后新增 %d 条", fresh.size)
         val imported = if (fresh.isEmpty()) {
             0
         } else {
             val wechatTag = findOrCreateWeChatTag()
             entryRepository.addAllWithTag(fresh.map { it.toEntry() }, wechatTag)
         }
+        Timber.i("微信导入确认完成：入库 %d 条、重复跳过 %d 条", imported, draft.entries.size - imported)
         return WeChatImportResult(
             imported = imported,
             duplicates = draft.entries.size - imported,

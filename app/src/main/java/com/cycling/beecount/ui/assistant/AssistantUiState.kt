@@ -2,6 +2,7 @@ package com.cycling.beecount.ui.assistant
 
 import android.net.Uri
 import com.cycling.beecount.domain.model.AiParseResult
+import com.cycling.beecount.domain.model.BudgetProgress
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.Tag
@@ -25,6 +26,7 @@ data class AssistantUiState(
     val allTags: List<Tag> = emptyList(),
     val todayEntries: List<Entry> = emptyList(),
     val todayTotals: TodayTotals = TodayTotals(),
+    val budgetProgress: List<BudgetProgress> = emptyList(),
     val today: LocalDate = LocalDate.now(),
     val isParsing: Boolean = false,
     val transientError: String? = null,
