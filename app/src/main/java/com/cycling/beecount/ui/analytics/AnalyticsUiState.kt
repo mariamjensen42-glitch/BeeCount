@@ -17,8 +17,18 @@ enum class HeatmapMetric(val label: String) {
  * [granularity] 决定展示月度报表还是年度报告，
  * [selectedMonth]/[selectedYear] 为当前查看的周期，默认定位本月/本年。
  */
+/** AI 月度报告状态（P0）：随「生成月报」动作流转 */
+sealed interface MonthlyReportState {
+    data object Idle : MonthlyReportState
+    data object Loading : MonthlyReportState
+    data class Content(val text: String, val isLocal: Boolean = false) : MonthlyReportState
+    data object KeyMissing : MonthlyReportState
+    data class Error(val message: String) : MonthlyReportState
+}
+
 data class AnalyticsUiState(
     val granularity: AnalyticsGranularity = AnalyticsGranularity.MONTH,
+    val monthlyReport: MonthlyReportState = MonthlyReportState.Idle,
     val selectedMonth: YearMonth = YearMonth.now(),
     val selectedYear: Int = Year.now().value,
     val heatmapMetric: HeatmapMetric = HeatmapMetric.EXPENSE,
@@ -45,4 +55,7 @@ sealed interface AnalyticsEvent {
     data class SelectHeatmapMetric(val metric: HeatmapMetric) : AnalyticsEvent
 
     data class SelectHeatmapDate(val date: java.time.LocalDate) : AnalyticsEvent
+
+    /** 生成 AI 月度财务报告（P0） */
+    data object GenerateMonthlyReport : AnalyticsEvent
 }
