@@ -12,6 +12,7 @@ import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.TagRepository
+import com.cycling.beecount.domain.usecase.CategoryClassifier
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -80,6 +81,9 @@ class EntryIntakeTest {
         aiKeyRepository = fakeKeyRepository(key),
         ocrTextRecognizer = OcrTextRecognizer { "" },
         currentDate = { today },
+        categoryClassifier = object : CategoryClassifier {
+            override suspend fun suggest(counterparty: String?, note: String?): List<String> = emptyList()
+        },
     )
 
     // ---------- parse ----------

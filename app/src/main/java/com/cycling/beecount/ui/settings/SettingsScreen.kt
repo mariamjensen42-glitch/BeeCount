@@ -488,13 +488,15 @@ private fun WeChatImportConfirmSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (preview.duplicateCount > 0 || preview.skippedCount > 0) {
+            if (preview.duplicateCount > 0 || preview.skippedCount > 0 || preview.similarCount > 0) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = buildString {
                         if (preview.duplicateCount > 0) append("其中 ${preview.duplicateCount} 笔与已有账目重复，不会重复导入")
-                        if (preview.duplicateCount > 0 && preview.skippedCount > 0) append("；")
+                        if (preview.duplicateCount > 0 && (preview.skippedCount > 0 || preview.similarCount > 0)) append("；")
                         if (preview.skippedCount > 0) append("跳过 ${preview.skippedCount} 笔（充值/提现等中性交易）")
+                        if (preview.skippedCount > 0 && preview.similarCount > 0) append("；")
+                        if (preview.similarCount > 0) append("${preview.similarCount} 笔与已有账目高度相似（金额/日期/对方接近），将自动跳过以免重复")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

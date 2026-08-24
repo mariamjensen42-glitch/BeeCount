@@ -6,14 +6,17 @@ import com.cycling.beecount.domain.model.Budget
 import com.cycling.beecount.domain.model.BudgetCycle
 import com.cycling.beecount.domain.model.BudgetException
 import com.cycling.beecount.domain.model.BudgetProgress
+import com.cycling.beecount.domain.model.BudgetForecast
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.query.EntryQuery
+import com.cycling.beecount.domain.usecase.BudgetForecastUseCase
 import com.cycling.beecount.domain.usecase.ManageBudgetUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,11 +27,17 @@ import kotlinx.coroutines.launch
 class ManageBudgetsViewModel @Inject constructor(
     private val manageBudgetUseCase: ManageBudgetUseCase,
     private val entryQuery: EntryQuery,
+    private val budgetForecastUseCase: BudgetForecastUseCase,
 ) : ViewModel() {
 
     private val today = LocalDate.now()
 
     val progress: StateFlow<List<BudgetProgress>> = entryQuery.observeBudgetProgress(today)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 预算执行预测：基于当前进度线性外推周期末支出（纯本地，见 BudgetForecastUseCase） */
+    val forecast: StateFlow<List<BudgetForecast>> = progress
+        .map { budgetForecastUseCase.forecast(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val budgets: StateFlow<List<Budget>> = entryQuery.observeBudgets()

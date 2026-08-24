@@ -23,8 +23,8 @@ android {
         applicationId = "com.cycling.beecount"
         minSdk = 31
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.0.6"
+        versionCode = 7
+        versionName = "0.0.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,6 +97,9 @@ dependencies {
 
     // ML Kit OCR
     implementation(libs.mlkit.text.recognition.chinese)
+
+    // TF Lite 端侧分类（智能分类建议，离线隐私）
+    implementation(libs.tensorflow.lite)
 
     // CameraX
     implementation(libs.camerax.core)

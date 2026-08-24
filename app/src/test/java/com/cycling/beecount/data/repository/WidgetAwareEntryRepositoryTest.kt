@@ -4,6 +4,9 @@ import com.cycling.beecount.data.repository.WidgetAwareEntryRepository
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.Tag
+import com.cycling.beecount.domain.model.AnomalyAlert
+import com.cycling.beecount.domain.usecase.AnomalyDetector
+import com.cycling.beecount.domain.usecase.AnomalyNotifier
 import com.cycling.beecount.domain.usecase.FakeEntryRepository
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
@@ -13,6 +16,10 @@ import org.junit.Test
 /**
  * 装饰器测试（ADR 0013）：账目写操作触发 widget 刷新、未实际改数据不触发、只读不触发。
  */
+private object NoOpNotifier : AnomalyNotifier {
+    override fun notify(alert: AnomalyAlert) {}
+}
+
 class WidgetAwareEntryRepositoryTest {
 
     private fun entry(sourceRef: String? = null) = Entry(
@@ -28,7 +35,12 @@ class WidgetAwareEntryRepositoryTest {
     private class Harness {
         val delegate = FakeEntryRepository(emptyList())
         var refreshes = 0
-        val repo = WidgetAwareEntryRepository(delegate) { refreshes++ }
+        val repo = WidgetAwareEntryRepository(
+            delegate,
+            { refreshes++ },
+            AnomalyDetector(delegate),
+            NoOpNotifier,
+        )
     }
 
     @Test

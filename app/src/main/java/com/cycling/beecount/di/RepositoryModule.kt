@@ -6,7 +6,9 @@ import com.cycling.beecount.data.repository.RoomBudgetRepository
 import com.cycling.beecount.data.repository.RoomCategoryRepository
 import com.cycling.beecount.data.repository.RoomEntryRepository
 import com.cycling.beecount.data.repository.RoomTagRepository
+import com.cycling.beecount.data.ml.TfliteCategoryClassifier
 import com.cycling.beecount.data.repository.WidgetAwareEntryRepository
+import com.cycling.beecount.data.notify.Notifier
 import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.BudgetRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
@@ -16,6 +18,8 @@ import com.cycling.beecount.domain.repository.TagRepository
 import com.cycling.beecount.domain.usecase.MlKitOcrTextRecognizer
 import com.cycling.beecount.domain.usecase.OcrTextRecognizer
 import com.cycling.beecount.domain.usecase.OnDeviceSpeechToText
+import com.cycling.beecount.domain.usecase.AnomalyNotifier
+import com.cycling.beecount.domain.usecase.CategoryClassifier
 import com.cycling.beecount.domain.usecase.SpeechToText
 import dagger.Binds
 import dagger.Module
@@ -37,6 +41,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindEntryRepository(impl: WidgetAwareEntryRepository): EntryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAnomalyNotifier(impl: Notifier): AnomalyNotifier
 
     @Binds
     @Singleton
@@ -63,4 +71,8 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindSpeechRecognizer(impl: OnDeviceSpeechToText): SpeechToText
+
+    @Binds
+    @Singleton
+    abstract fun bindCategoryClassifier(impl: TfliteCategoryClassifier): CategoryClassifier
 }

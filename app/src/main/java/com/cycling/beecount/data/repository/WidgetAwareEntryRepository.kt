@@ -7,6 +7,13 @@ import com.cycling.beecount.domain.repository.EntrySnapshot
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.usecase.AnomalyDetector
+import com.cycling.beecount.domain.usecase.AnomalyNotifier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /** 账目变更后的通知钩子（ADR 0013）：桌面小组件刷新器实现它 */
 fun interface WidgetRefresher {
@@ -23,12 +30,23 @@ fun interface WidgetRefresher {
 class WidgetAwareEntryRepository @Inject constructor(
     @Named("base") private val delegate: EntryRepository,
     private val refresher: WidgetRefresher,
+    private val anomalyDetector: AnomalyDetector,
+    private val anomalyNotifier: AnomalyNotifier,
 ) : EntryRepository by delegate {
 
-    override suspend fun add(entry: Entry): Long = delegate.add(entry).also { refresher.refresh() }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** 新支出落库后异步检测异常（导入走 addAll*，不触发以免刷屏） */
+    private fun maybeDetect(entry: Entry) {
+        if (entry.type != EntryType.EXPENSE) return
+        scope.launch { anomalyDetector.detect(entry)?.let { anomalyNotifier.notify(it) } }
+    }
+
+    override suspend fun add(entry: Entry): Long =
+        delegate.add(entry).also { refresher.refresh(); maybeDetect(entry) }
 
     override suspend fun addWithTags(entry: Entry, tagIds: List<Long>): Long =
-        delegate.addWithTags(entry, tagIds).also { refresher.refresh() }
+        delegate.addWithTags(entry, tagIds).also { refresher.refresh(); maybeDetect(entry) }
 
     override suspend fun delete(id: Long) {
         delegate.delete(id)
