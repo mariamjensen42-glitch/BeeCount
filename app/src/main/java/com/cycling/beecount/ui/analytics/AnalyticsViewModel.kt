@@ -8,7 +8,9 @@ import com.cycling.beecount.domain.model.GrowthAnalytics
 import com.cycling.beecount.domain.model.MonthlyAnalytics
 import com.cycling.beecount.domain.model.NetAssetTrend
 import com.cycling.beecount.domain.query.EntryQuery
+import com.cycling.beecount.domain.usecase.AiMonthlyReportUseCase
 import com.cycling.beecount.domain.usecase.BuildComparisonAnalyticsUseCase
+import kotlinx.coroutines.launch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Year
 import java.time.YearMonth
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.update
 class AnalyticsViewModel @Inject constructor(
     private val entryQuery: EntryQuery,
     private val buildComparison: BuildComparisonAnalyticsUseCase,
+    private val aiMonthlyReport: AiMonthlyReportUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
@@ -143,6 +146,24 @@ class AnalyticsViewModel @Inject constructor(
 
             is AnalyticsEvent.SelectHeatmapDate ->
                 _uiState.update { state -> state.copy(selectedHeatmapDate = event.date) }
+
+            AnalyticsEvent.GenerateMonthlyReport ->
+                generateMonthlyReport(_uiState.value.selectedMonth)
+        }
+    }
+
+    private fun generateMonthlyReport(month: YearMonth) {
+        if (_uiState.value.monthlyReport is MonthlyReportState.Loading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(monthlyReport = MonthlyReportState.Loading) }
+            when (val r = aiMonthlyReport.generate(month)) {
+                is AiMonthlyReportUseCase.Result.Content ->
+                    _uiState.update { it.copy(monthlyReport = MonthlyReportState.Content(r.text, r.isLocal)) }
+                is AiMonthlyReportUseCase.Result.KeyMissing ->
+                    _uiState.update { it.copy(monthlyReport = MonthlyReportState.KeyMissing) }
+                is AiMonthlyReportUseCase.Result.Error ->
+                    _uiState.update { it.copy(monthlyReport = MonthlyReportState.Error(r.message)) }
+            }
         }
     }
 }
