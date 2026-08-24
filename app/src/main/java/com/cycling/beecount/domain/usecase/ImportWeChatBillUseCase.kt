@@ -6,6 +6,7 @@ import com.cycling.beecount.domain.model.WeChatImportDraft
 import com.cycling.beecount.domain.model.toEntry
 import com.cycling.beecount.domain.repository.EntryRepository
 import com.cycling.beecount.domain.repository.TagRepository
+import com.cycling.beecount.domain.usecase.SimilarityDetector
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -24,12 +25,14 @@ import timber.log.Timber
 class ImportWeChatBillUseCase @Inject constructor(
     private val entryRepository: EntryRepository,
     private val tagRepository: TagRepository,
+    private val similarityDetector: SimilarityDetector,
 ) {
 
     suspend fun preview(draft: WeChatImportDraft): WeChatImportPreview {
         Timber.d("微信导入预览：草案 %d 条", draft.entries.size)
         val existing = entryRepository.findExistingSourceRefs(draft.entries.map { it.sourceRef })
         val newEntries = draft.entries.filter { it.sourceRef !in existing }
+        val similar = similarityDetector.findSimilar(draft)
         Timber.d("微信导入预览：已有 %d 条去重命中，新增 %d 条", existing.size, newEntries.size)
         return WeChatImportPreview(
             from = newEntries.minOfOrNull { it.date } ?: draft.entries.minOfOrNull { it.date },
@@ -40,6 +43,8 @@ class ImportWeChatBillUseCase @Inject constructor(
             neutralCount = newEntries.count { it.type == EntryType.NEUTRAL },
             skippedCount = draft.skippedCount,
             duplicateCount = draft.entries.size - newEntries.size,
+            similarCount = similar.keys.size,
+            similarRefs = similar.keys.toList(),
             categoryDistribution = newEntries.groupingBy { it.categoryName }.eachCount()
                 .entries.sortedByDescending { it.value }
                 .map { it.key to it.value },
@@ -50,19 +55,22 @@ class ImportWeChatBillUseCase @Inject constructor(
         Timber.d("微信导入确认开始：草案 %d 条", draft.entries.size)
         val existing = entryRepository.findExistingSourceRefs(draft.entries.map { it.sourceRef })
         val fresh = draft.entries.filter { it.sourceRef !in existing }
-        Timber.d("微信导入确认：去重后新增 %d 条", fresh.size)
-        val imported = if (fresh.isEmpty()) {
+        val similar = similarityDetector.findSimilar(draft)
+        val freshSkipSimilar = fresh.filter { it.sourceRef !in similar.keys }
+        Timber.d("微信导入确认：去重后新增 %d 条，相似跳过 %d 条", fresh.size, fresh.size - freshSkipSimilar.size)
+        val imported = if (freshSkipSimilar.isEmpty()) {
             0
         } else {
             val wechatTag = findOrCreateWeChatTag()
-            entryRepository.addAllWithTag(fresh.map { it.toEntry() }, wechatTag)
+            entryRepository.addAllWithTag(freshSkipSimilar.map { it.toEntry() }, wechatTag)
         }
-        Timber.i("微信导入确认完成：入库 %d 条、重复跳过 %d 条", imported, draft.entries.size - imported)
+        Timber.i("微信导入确认完成：入库 %d 条、重复跳过 %d 条（相似 %d）", imported, draft.entries.size - imported, fresh.size - freshSkipSimilar.size)
         return WeChatImportResult(
             imported = imported,
             duplicates = draft.entries.size - imported,
             // 撤销范围只含本次实际插入的单号：重复跳过的行是历史导入的，撤销时不能误删（ADR 0012）
-            insertedRefs = fresh.map { it.sourceRef },
+            insertedRefs = freshSkipSimilar.map { it.sourceRef },
+            similarSkipped = fresh.size - freshSkipSimilar.size,
         )
     }
 
@@ -91,6 +99,10 @@ data class WeChatImportPreview(
     val neutralCount: Int,
     val skippedCount: Int,
     val duplicateCount: Int,
+    /** 疑似相似（金额+日期窗口+对方接近）的草稿笔数，提示可能重复导入 */
+    val similarCount: Int = 0,
+    /** 疑似相似的草稿交易单号列表 */
+    val similarRefs: List<String> = emptyList(),
     val categoryDistribution: List<Pair<String, Int>>,
 )
 
@@ -101,5 +113,7 @@ data class WeChatImportPreview(
 data class WeChatImportResult(
     val imported: Int,
     val duplicates: Int,
+    /** 因与库内相似（金额+日期+对方接近）而跳过的笔数，属 duplicates 的子集 */
+    val similarSkipped: Int = 0,
     val insertedRefs: List<String>,
 )

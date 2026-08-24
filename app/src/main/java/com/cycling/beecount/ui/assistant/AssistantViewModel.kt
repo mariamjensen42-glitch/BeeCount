@@ -8,6 +8,7 @@ import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.domain.query.EntryQuery
+import com.cycling.beecount.domain.usecase.AnswerQueryUseCase
 import com.cycling.beecount.domain.usecase.EntryIntake
 import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
 import com.cycling.beecount.domain.usecase.SpeechToText
@@ -34,6 +35,7 @@ class AssistantViewModel @Inject constructor(
     private val ocrImageImportUseCase: OcrImageImportUseCase,
     private val speechRecognizer: SpeechToText,
     private val entryQuery: EntryQuery,
+    private val answerQueryUseCase: AnswerQueryUseCase,
 ) : ViewModel() {
 
     private val today: LocalDate = LocalDate.now()
@@ -174,9 +176,34 @@ class AssistantViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            handleParseOutcome(entryIntake.parse(trimmed), originalText = trimmed)
+            if (looksLikeQuery(trimmed)) {
+                when (val o = answerQueryUseCase.answer(trimmed)) {
+                    is AnswerQueryUseCase.Outcome.Answered -> addAssistantMessage(o.answer)
+                    is AnswerQueryUseCase.Outcome.NotAQuery ->
+                        handleParseOutcome(entryIntake.parse(trimmed), originalText = trimmed)
+                    is AnswerQueryUseCase.Outcome.KeyMissing ->
+                        addAssistantMessage("请先到底部「设置」里填写你的 DeepSeek API Key")
+                    is AnswerQueryUseCase.Outcome.Error -> addAssistantMessage(o.message)
+                }
+            } else {
+                handleParseOutcome(entryIntake.parse(trimmed), originalText = trimmed)
+            }
             _uiState.update { it.copy(isParsing = false) }
         }
+    }
+
+    /**
+     * 轻量本地启发式：判断输入是否像「统计查询」而非「要记的账」。
+     * 命中才走查询管线，避免给常规记账增加额外的模型调用；未命中仍走记账管线。
+     */
+    private fun looksLikeQuery(text: String): Boolean {
+        val cues = listOf(
+            "多少", "几月", "几个月", "总共", "一共", "合计", "花了多少", "花掉", "花了",
+            "余额", "还剩", "占比", "比例", "排行", "排名", "最多", "最少", "平均", "日均",
+            "月均", "今年", "去年", "本月", "上月", "这周", "上周", "哪个月", "什么时候",
+            "统计", "查询", "开销", "支出", "收入",
+        )
+        return cues.any { text.contains(it) } || text.contains("？") || text.contains("?")
     }
 
     private fun confirm() {

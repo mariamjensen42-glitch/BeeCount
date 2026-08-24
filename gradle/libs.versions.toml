@@ -25,6 +25,7 @@ mlkitTextRecognitionChinese = "16.0.1"
 camerax = "1.4.0"
 glance = "1.1.1"
 timber = "5.0.1"
+tensorflowLite = "2.16.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,7 @@ compose-heroicons = { group = "com.woowla.compose.icon.collections", name = "her
 # 拖拽排序（类别/标签管理页，成熟第三方库）
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 mlkit-text-recognition-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkitTextRecognitionChinese" }
+tensorflow-lite = { group = "org.tensorflow", name = "tensorflow-lite", version.ref = "tensorflowLite" }
 camerax-core      = { group = "androidx.camera", name = "camera-core",     version.ref = "camerax" }
 camerax-camera2   = { group = "androidx.camera", name = "camera-camera2",  version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }

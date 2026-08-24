@@ -8,6 +8,7 @@ import com.cycling.beecount.domain.model.nextTagColor
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
 import com.cycling.beecount.domain.repository.TagRepository
+import com.cycling.beecount.domain.usecase.CategoryClassifier
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +35,7 @@ class EntryIntake @Inject constructor(
     private val aiKeyRepository: com.cycling.beecount.domain.repository.AiKeyRepository,
     private val ocrTextRecognizer: OcrTextRecognizer,
     private val currentDate: () -> LocalDate,
+    private val categoryClassifier: CategoryClassifier,
 ) {
 
     /** OCR 解析结果。 */
@@ -148,6 +150,10 @@ class EntryIntake @Inject constructor(
         val id = entryRepository.addWithTags(entry, resolvedTags.map { it.id })
         return entry.copy(id = id, tags = resolvedTags)
     }
+
+    /** 端侧 ML 类别建议（TF Lite）；无模型或线索不足时返回空，不阻断记账 */
+    suspend fun suggestCategory(counterparty: String?, note: String?): List<String> =
+        runCatching { categoryClassifier.suggest(counterparty, note) }.getOrDefault(emptyList())
 
     /** 编辑一条已入库账目并整体替换标签关联（原 UpdateEntryUseCase）。 */
     suspend fun update(

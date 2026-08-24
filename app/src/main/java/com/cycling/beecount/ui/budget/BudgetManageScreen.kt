@@ -48,6 +48,7 @@ import com.cycling.beecount.domain.model.Budget
 import com.cycling.beecount.domain.model.BudgetCycle
 import com.cycling.beecount.domain.model.BudgetException
 import com.cycling.beecount.domain.model.BudgetProgress
+import com.cycling.beecount.domain.model.BudgetForecast
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.ui.theme.ComponentDefaults
 import com.cycling.beecount.ui.theme.Dimens
@@ -77,8 +78,10 @@ fun BudgetManageRoute(
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val exceptions by viewModel.exceptions.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val forecast by viewModel.forecast.collectAsStateWithLifecycle()
     BudgetManageScreen(
         progress = progress,
+        forecast = forecast,
         exceptions = exceptions,
         topLevelCategories = categories.filter { it.parentId == null },
         onBack = onBack,
@@ -96,6 +99,7 @@ fun BudgetManageRoute(
 @Composable
 private fun BudgetManageScreen(
     progress: List<BudgetProgress>,
+    forecast: List<BudgetForecast>,
     exceptions: List<BudgetException>,
     topLevelCategories: List<Category>,
     onBack: () -> Unit,
@@ -143,6 +147,7 @@ private fun BudgetManageScreen(
                     items(progress, key = { it.budget.id }) { p ->
                         BudgetCard(
                             progress = p,
+                            forecast = forecast.firstOrNull { it.progress.budget.id == p.budget.id },
                             topLevelCategories = topLevelCategories,
                             onUpdateAmount = onUpdateAmount,
                             onUpdateCarryOver = onUpdateCarryOver,
@@ -189,6 +194,7 @@ private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 private fun BudgetCard(
     progress: BudgetProgress,
+    forecast: BudgetForecast?,
     topLevelCategories: List<Category>,
     onUpdateAmount: (id: Long, amount: Double) -> Unit,
     onUpdateCarryOver: (id: Long, carryOver: Boolean) -> Unit,
@@ -277,6 +283,14 @@ private fun BudgetCard(
                 )
                 Text("结转", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Switch(checked = budget.carryOver, onCheckedChange = { onUpdateCarryOver(budget.id, it) })
+            }
+            if (forecast != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    forecast.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (forecast.willOver) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

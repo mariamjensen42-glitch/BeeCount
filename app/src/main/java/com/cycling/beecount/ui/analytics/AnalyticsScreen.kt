@@ -27,8 +27,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -162,6 +164,8 @@ fun AnalyticsScreen(
                     comparison = comparison,
                     growth = growth,
                     netAssetTrend = netAssetTrend,
+                    report = uiState.monthlyReport,
+                    onGenerate = { onEvent(AnalyticsEvent.GenerateMonthlyReport) },
                     modifier = Modifier.weight(1f),
                 )
                 AnalyticsGranularity.YEAR -> AnnualContent(
@@ -301,6 +305,8 @@ private fun MonthlyContent(
     comparison: ComparisonAnalytics?,
     growth: GrowthAnalytics?,
     netAssetTrend: NetAssetTrend?,
+    report: MonthlyReportState,
+    onGenerate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -308,6 +314,7 @@ private fun MonthlyContent(
         contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item { MonthlyReportBlock(report, onGenerate) }
         val data = monthly
         if (data == null) {
             // 切换粒度/翻页瞬间数据短暂为 null，首帧留白即可（Room Flow 随后立即发出）
@@ -337,6 +344,86 @@ private fun MonthlyContent(
             }
             if (netAssetTrend != null && netAssetTrend.points.isNotEmpty()) {
                 item { NetAssetTrendCard(netAssetTrend, growth) }
+            }
+        }
+    }
+}
+
+/** AI 月度报告卡（P0）：按钮始终可见；按状态展示 Idle/Loading/Content/KeyMissing/Error */
+@Composable
+private fun MonthlyReportBlock(report: MonthlyReportState, onGenerate: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "AI 月度报告",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = onGenerate,
+                    enabled = report !is MonthlyReportState.Loading,
+                ) {
+                    Text(if (report is MonthlyReportState.Loading) "生成中…" else "生成月报")
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            when (report) {
+                MonthlyReportState.Idle ->
+                    Text(
+                        text = "一键生成这个月的中文财务报告（基于真实数据，配置 Key 后由 AI 润色）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                MonthlyReportState.Loading ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = "正在生成…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                is MonthlyReportState.Content -> {
+                    if (report.isLocal) {
+                        Text(
+                            text = "（本地模板生成；配置 DeepSeek API Key 后可生成更口语化的 AI 版）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TerminalCyan,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    Text(
+                        text = report.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                MonthlyReportState.KeyMissing ->
+                    Text(
+                        text = "未配置 DeepSeek API Key，已用本地模板生成；去「设置」配置 Key 可生成 AI 版。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                is MonthlyReportState.Error ->
+                    Text(
+                        text = report.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ExpenseRed,
+                    )
             }
         }
     }

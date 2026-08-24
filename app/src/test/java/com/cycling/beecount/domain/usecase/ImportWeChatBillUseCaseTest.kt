@@ -14,6 +14,7 @@ import org.junit.Test
  */
 class ImportWeChatBillUseCaseTest {
 
+
     private fun draft(vararg entries: WeChatImportDraftEntry, skipped: Int = 0) =
         WeChatImportDraft(entries = entries.toList(), skippedCount = skipped)
 
@@ -40,7 +41,7 @@ class ImportWeChatBillUseCaseTest {
                     date = LocalDate.of(2026, 4, 1), note = "已存在的", sourceRef = "DUP-1"),
             ),
         )
-        val useCase = ImportWeChatBillUseCase(repo, FakeTagRepository())
+        val useCase = ImportWeChatBillUseCase(repo, FakeTagRepository(), SimilarityDetector(repo))
         val preview = useCase.preview(
             draft(
                 draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1", LocalDate.of(2026, 4, 1)),
@@ -70,7 +71,7 @@ class ImportWeChatBillUseCaseTest {
             ),
         )
         val tagRepo = FakeTagRepository()
-        val useCase = ImportWeChatBillUseCase(repo, tagRepo)
+        val useCase = ImportWeChatBillUseCase(repo, tagRepo, SimilarityDetector(repo))
         val result = useCase.confirm(
             draft(
                 draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1"),
@@ -102,7 +103,7 @@ class ImportWeChatBillUseCaseTest {
             ),
         )
         val tagRepo = FakeTagRepository()
-        val useCase = ImportWeChatBillUseCase(repo, tagRepo)
+        val useCase = ImportWeChatBillUseCase(repo, tagRepo, SimilarityDetector(repo))
         val result = useCase.confirm(draft(draftEntry(EntryType.EXPENSE, "餐饮", "DUP-1")))
 
         assertEquals(0, result.imported)
