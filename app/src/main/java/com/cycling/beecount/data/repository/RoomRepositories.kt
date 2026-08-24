@@ -4,6 +4,7 @@ import com.cycling.beecount.data.local.CategoryDao
 import com.cycling.beecount.data.local.CategoryEntity
 import com.cycling.beecount.data.local.EntryDao
 import com.cycling.beecount.data.local.EntryEntity
+import com.cycling.beecount.data.local.EntryWithTagIds
 import com.cycling.beecount.data.local.TagDao
 import com.cycling.beecount.data.local.TagEntity
 import com.cycling.beecount.data.local.toDomain
@@ -68,6 +69,17 @@ class RoomEntryRepository @Inject constructor(
 
     override suspend fun replaceAll(entries: List<Entry>) {
         entryDao.replaceAll(entries.map { it.toEntity() })
+    }
+
+    override suspend fun replaceAllWithTagIds(entries: List<Entry>, tagIndex: Map<String, Long>) {
+        entryDao.replaceAllWithTags(
+            entries.map { item ->
+                EntryWithTagIds(
+                    entry = item.toEntity(),
+                    tagIds = item.tags.mapNotNull { tag -> tagIndex[tag.name] },
+                )
+            },
+        )
     }
 
     override suspend fun clearAll() {

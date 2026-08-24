@@ -24,43 +24,62 @@ data class AnalyticsTotals(
  */
 internal object AnalyticsAggregator {
 
-    /** 区间合计：支出/收入/笔数（笔数只算支出+收入，中性记录不计入，ADR 0012） */
+    /** 支出净额 = 支出合计 − 退款合计（红字冲销），但不低于 0 */
+    private fun List<Entry>.netExpense(): Double =
+        (filter { it.type == EntryType.EXPENSE }.sumOf { it.amount } -
+            filter { it.type == EntryType.REFUND }.sumOf { it.amount })
+            .coerceAtLeast(0.0)
+
+    /** 区间合计：支出（已扣退款）/收入/笔数（笔数只算支出+收入，中性记录不计入，ADR 0012） */
     fun totals(entries: List<Entry>): AnalyticsTotals = AnalyticsTotals(
-        expense = entries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount },
+        expense = entries.netExpense(),
         income = entries.filter { it.type == EntryType.INCOME }.sumOf { it.amount },
         entryCount = entries.count { it.type == EntryType.EXPENSE || it.type == EntryType.INCOME },
     )
 
-    /** 支出类别排行：按合计金额降序，收入类别不参与 */
-    fun expenseRanks(entries: List<Entry>): List<CategoryRank> =
-        entries.filter { it.type == EntryType.EXPENSE }
+    /** 支出类别排行：按退款冲减后的净支出合计降序，收入类别不参与 */
+    fun expenseRanks(entries: List<Entry>): List<CategoryRank> {
+        val expenseByCat = entries
+            .filter { it.type == EntryType.EXPENSE }
             .groupBy { it.categoryName }
-            .map { (name, list) -> CategoryRank(name, list.sumOf { it.amount }) }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+        val refundByCat = entries
+            .filter { it.type == EntryType.REFUND }
+            .groupBy { it.categoryName }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+        val netByCat = (expenseByCat.keys + refundByCat.keys)
+            .associateWith { cat ->
+                (expenseByCat[cat] ?: 0.0) - (refundByCat[cat] ?: 0.0)
+            }
+            .filterValues { it > 0.0 }
+        return netByCat
+            .map { (name, amount) -> CategoryRank(name, amount) }
             .sortedByDescending { it.amount }
+    }
 
-    /** 月内每日支出：1..月末 每一天一个点，无支出日为 0.0 */
+    /** 月内每日支出：1..月末 每一天一个点，无支出日为 0.0（退款在当日净额中冲减） */
     fun dailyExpense(month: YearMonth, entries: List<Entry>): List<DailyExpense> {
         val byDay = entries
-            .filter { it.type == EntryType.EXPENSE }
+            .filter { it.type == EntryType.EXPENSE || it.type == EntryType.REFUND }
             .groupBy { it.date.dayOfMonth }
         return (1..month.lengthOfMonth()).map { day ->
-            DailyExpense(day, byDay[day]?.sumOf { it.amount } ?: 0.0)
+            DailyExpense(day, byDay[day]?.netExpense() ?: 0.0)
         }
     }
 
-    /** 年度 12 个月支出：1..12 每月一个点，无支出月为 0.0 */
+    /** 年度 12 个月支出：1..12 每月一个点，无支出月为 0.0（退款在当月净额中冲减） */
     fun monthlyExpense(year: Int, entries: List<Entry>): List<MonthlyExpensePoint> {
         val byMonth = entries
-            .filter { it.type == EntryType.EXPENSE }
+            .filter { it.type == EntryType.EXPENSE || it.type == EntryType.REFUND }
             .groupBy { it.date.monthValue }
         return (1..12).map { month ->
-            MonthlyExpensePoint(YearMonth.of(year, month), byMonth[month]?.sumOf { it.amount } ?: 0.0)
+            MonthlyExpensePoint(YearMonth.of(year, month), byMonth[month]?.netExpense() ?: 0.0)
         }
     }
 
     /**
      * 年度热力图逐日摘要：全年每个日期均有一个点。
-     * 支出金额只汇总支出，笔数与是否记账只算支出+收入（中性记录不计入，ADR 0012）。
+     * 支出金额只汇总支出（已扣退款），笔数与是否记账只算支出+收入（中性记录不计入，ADR 0012）。
      */
     fun annualHeatmap(year: Int, entries: List<Entry>): List<AnnualHeatmapDay> {
         val entriesByDate = entries.groupBy { it.date }
@@ -72,9 +91,7 @@ internal object AnalyticsAggregator {
             val entriesOnDate = entriesByDate[date].orEmpty()
             AnnualHeatmapDay(
                 date = date,
-                expense = entriesOnDate
-                    .filter { it.type == EntryType.EXPENSE }
-                    .sumOf { it.amount },
+                expense = entriesOnDate.netExpense(),
                 entryCount = entriesOnDate.count {
                     it.type == EntryType.EXPENSE || it.type == EntryType.INCOME
                 },
@@ -82,18 +99,17 @@ internal object AnalyticsAggregator {
         }.toList()
     }
 
-    /** 日均支出：支出合计 ÷ 有支出的天数（不 ÷365，避免未记账的日子拉低均值） */
+    /** 日均支出：净支出合计 ÷ 有支出的天数（不 ÷365，避免未记账的日子拉低均值） */
     fun avgDailyExpense(entries: List<Entry>): Double {
-        val expenseEntries = entries.filter { it.type == EntryType.EXPENSE }
+        val expenseEntries = entries.filter { it.type == EntryType.EXPENSE || it.type == EntryType.REFUND }
         val daysWithExpense = expenseEntries.map { it.date }.distinct().size
         if (daysWithExpense == 0) return 0.0
-        return expenseEntries.sumOf { it.amount } / daysWithExpense
+        return expenseEntries.netExpense() / daysWithExpense
     }
 
-    /** 分类占比（饼图/环形图）：按支出分类合计，金额降序，每片带占比 */
+    /** 分类占比（饼图/环形图）：按退款冲减后的净支出合计，金额降序，每片带占比 */
     fun categoryBreakdown(entries: List<Entry>): CategoryBreakdown {
-        val expenseEntries = entries.filter { it.type == EntryType.EXPENSE }
-        val total = expenseEntries.sumOf { it.amount }
+        val total = entries.netExpense()
         if (total == 0.0) return CategoryBreakdown(0.0, emptyList())
         val ranks = expenseRanks(entries)
         return CategoryBreakdown(

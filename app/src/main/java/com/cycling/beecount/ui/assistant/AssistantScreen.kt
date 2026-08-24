@@ -1,5 +1,6 @@
 package com.cycling.beecount.ui.assistant
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -67,6 +70,7 @@ import com.cycling.beecount.R
 import com.cycling.beecount.domain.model.BudgetProgress
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.ui.FLOATING_PILL_CLEARANCE
 import com.cycling.beecount.ui.theme.ComponentDefaults
 import com.cycling.beecount.ui.theme.Dimens
@@ -80,6 +84,7 @@ import com.woowla.compose.icon.collections.heroicons.heroicons.Outline
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Camera
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronDown
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.ChevronUp
+import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Microphone
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.PaperAirplane
 import com.woowla.compose.icon.collections.heroicons.heroicons.outline.Photo
 import java.time.LocalDate
@@ -128,6 +133,13 @@ fun AssistantScreen(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) onEvent(AssistantEvent.OcrImageSelected(uri))
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) onEvent(AssistantEvent.StartVoice)
+        else onEvent(AssistantEvent.VoicePermissionDenied)
     }
 
     if (uiState.showCameraSheet) {
@@ -245,15 +257,55 @@ fun AssistantScreen(
                 }
             }
 
+            QuickTemplateBar(
+                templates = uiState.quickTemplates,
+                onApply = { template -> onEvent(AssistantEvent.ApplyTemplate(template)) },
+            )
+
             InputBar(
                 enabled = !uiState.isParsing,
                 targetDate = uiState.targetDate,
                 onSend = { text -> onEvent(AssistantEvent.SubmitInput(text)) },
+                onVoice = { micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                speakerOn = uiState.isListening,
                 modifier = Modifier
                     .fillMaxWidth()
                     // 底部留白交给外层 Column 的 FLOATING_PILL_CLEARANCE，这里只留上下间距
                     .padding(start = 16.dp, end = 16.dp, top = 16.dp),
             )
+        }
+    }
+}
+
+/** 快捷模板横向滚动条：点击即构建确认卡（一键填入「早餐=豆浆油条+5元」） */
+@Composable
+private fun QuickTemplateBar(
+    templates: List<QuickTemplate>,
+    onApply: (QuickTemplate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (templates.isEmpty()) return
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        templates.forEach { template ->
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                onClick = { onApply(template) },
+            ) {
+                Text(
+                    text = "${template.title} · ¥${formatMoney(template.amount)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }
@@ -482,6 +534,13 @@ private fun SummaryEntryRow(entry: Entry) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (entry.type == EntryType.EXPENSE && entry.isReimbursed) {
+                Text(
+                    "已报销",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
         Spacer(Modifier.width(8.dp))
         when (entry.type) {
@@ -494,6 +553,11 @@ private fun SummaryEntryRow(entry: Entry) {
                 text = "+¥${formatMoney(entry.amount)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = IncomeGreen,
+            )
+            EntryType.REFUND -> Text(
+                text = "-¥${formatMoney(entry.amount)}（退）",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
             )
             EntryType.NEUTRAL -> Text(
                 text = "¥${formatMoney(entry.amount)}",
@@ -586,6 +650,8 @@ private fun InputBar(
     enabled: Boolean,
     targetDate: LocalDate?,
     onSend: (String) -> Unit,
+    onVoice: () -> Unit,
+    speakerOn: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
@@ -619,6 +685,20 @@ private fun InputBar(
             Icon(
                 imageVector = Heroicons.Outline.PaperAirplane,
                 contentDescription = stringResource(R.string.cd_send_message),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        androidx.compose.material3.FilledIconButton(
+            onClick = onVoice,
+            enabled = enabled,
+            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                containerColor = if (speakerOn) ExpenseRed else TerminalCyan,
+                contentColor = OnTerminalCyan,
+            ),
+        ) {
+            Icon(
+                imageVector = Heroicons.Outline.Microphone,
+                contentDescription = stringResource(R.string.cd_voice_input),
             )
         }
     }

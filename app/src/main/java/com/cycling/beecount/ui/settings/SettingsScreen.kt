@@ -83,6 +83,7 @@ fun SettingsRoute(
     onOpenCategoryManage: () -> Unit,
     onOpenTagManage: () -> Unit,
     onOpenBudgetManage: () -> Unit,
+    onOpenQuickTemplateManage: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     SettingsScreen(
@@ -92,6 +93,7 @@ fun SettingsRoute(
         onOpenCategoryManage = onOpenCategoryManage,
         onOpenTagManage = onOpenTagManage,
         onOpenBudgetManage = onOpenBudgetManage,
+        onOpenQuickTemplateManage = onOpenQuickTemplateManage,
     )
 }
 
@@ -104,6 +106,7 @@ fun SettingsScreen(
     onOpenCategoryManage: () -> Unit,
     onOpenTagManage: () -> Unit,
     onOpenBudgetManage: () -> Unit,
+    onOpenQuickTemplateManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -188,6 +191,7 @@ fun SettingsScreen(
             SettingsSectionHeader("管理")
             SettingsRow("管理类别", subtitle = "新增 / 子分类 / 排序 / 图标 / 删除归并", icon = Heroicons.Outline.Squares2x2, onClick = onOpenCategoryManage)
             SettingsRow("管理标签", subtitle = "改名 / 改色 / 删除", icon = Heroicons.Outline.Tag, onClick = onOpenTagManage)
+            SettingsRow("管理快捷模板", subtitle = "一键填入高频记账", icon = Heroicons.Outline.Sparkles, onClick = onOpenQuickTemplateManage)
             SettingsRow("管理预算", subtitle = "月度/年度/自定义周期 · 分类预算 · 结余结转", icon = Heroicons.Outline.ChartBar, onClick = onOpenBudgetManage)
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
@@ -452,7 +456,7 @@ private fun WeChatImportConfirmSheet(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val totalNew = preview.expenseCount + preview.incomeCount + preview.neutralCount
+    val totalNew = preview.expenseCount + preview.incomeCount + preview.refundCount + preview.neutralCount
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -473,7 +477,8 @@ private fun WeChatImportConfirmSheet(
             Text(
                 text = buildString {
                     append("支出 ${preview.expenseCount} 笔 · 收入 ${preview.incomeCount} 笔")
-                    if (preview.neutralCount > 0) append(" · 中性（退款）${preview.neutralCount} 笔")
+                    if (preview.refundCount > 0) append(" · 退款 ${preview.refundCount} 笔")
+                    if (preview.neutralCount > 0) append(" · 中性 ${preview.neutralCount} 笔")
                 },
                 style = MaterialTheme.typography.bodyLarge,
             )

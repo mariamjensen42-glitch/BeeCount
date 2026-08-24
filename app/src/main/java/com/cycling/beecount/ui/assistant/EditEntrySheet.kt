@@ -56,7 +56,7 @@ fun EditEntrySheet(
     entry: Entry,
     categories: List<Category>,
     tags: List<Tag>,
-    onSave: (editedType: EntryType, editedAmount: Double, editedCategoryName: String, editedDate: LocalDate, editedNote: String, tagNames: List<String>, editedCounterparty: String?) -> Unit,
+    onSave: (editedType: EntryType, editedAmount: Double, editedCategoryName: String, editedDate: LocalDate, editedNote: String, tagNames: List<String>, editedCounterparty: String?, editedIsReimbursed: Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,6 +66,7 @@ fun EditEntrySheet(
     var noteText by remember(entry.id) { mutableStateOf(entry.note) }
     var counterpartyText by remember(entry.id) { mutableStateOf(entry.counterparty.orEmpty()) }
     var selectedTagNames by remember(entry.id) { mutableStateOf<Set<String>>(entry.tags.map { it.name }.toSet()) }
+    var isReimbursed by remember(entry.id) { mutableStateOf(entry.isReimbursed) }
     var showDatePicker by remember(entry.id) { mutableStateOf(false) }
     var showNewTagInput by remember(entry.id) { mutableStateOf(false) }
     var newTagText by remember(entry.id) { mutableStateOf("") }
@@ -115,9 +116,13 @@ fun EditEntrySheet(
 
             Spacer(Modifier.height(12.dp))
 
-            // 类型切换（支出/收入）
+            // 类型切换（支出/收入/退款）
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(EntryType.EXPENSE to "支出", EntryType.INCOME to "收入").forEach { (t, label) ->
+                listOf(
+                    EntryType.EXPENSE to "支出",
+                    EntryType.INCOME to "收入",
+                    EntryType.REFUND to "退款",
+                ).forEach { (t, label) ->
                     FilterChip(
                         selected = type == t,
                         onClick = {
@@ -230,6 +235,16 @@ fun EditEntrySheet(
 
             Spacer(Modifier.height(12.dp))
 
+            // 报销标记（仅支出显示）
+            if (type == EntryType.EXPENSE) {
+                FilterChip(
+                    selected = isReimbursed,
+                    onClick = { isReimbursed = !isReimbursed },
+                    label = { Text(if (isReimbursed) "已报销" else "未报销") },
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
             // 日期（可编辑）
             Text(
                 text = "日期：${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
@@ -281,6 +296,7 @@ fun EditEntrySheet(
                                 noteText.trim(),
                                 selectedTagNames.toList(),
                                 counterpartyText.trim().takeIf { it.isNotEmpty() },
+                                isReimbursed,
                             )
                         }
                     },

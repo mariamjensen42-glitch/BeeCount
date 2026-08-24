@@ -167,12 +167,19 @@ object BudgetMath {
         period: BudgetPeriod,
         budgetCategoryName: String?,
         exceptionDates: Set<LocalDate>,
-    ): Double = entries
-        .filter { it.type == EntryType.EXPENSE }
-        .filter { !it.date.isBefore(period.start) && !it.date.isAfter(period.end) }
-        .filter { it.date !in exceptionDates }
-        .filter { matchesCategory(it.categoryName, budgetCategoryName) }
-        .sumOf { it.amount }
+    ): Double {
+        val inPeriod = entries.filter { !it.date.isBefore(period.start) && !it.date.isAfter(period.end) }
+            .filter { it.date !in exceptionDates }
+        val expense = inPeriod
+            .filter { it.type == EntryType.EXPENSE }
+            .filter { matchesCategory(it.categoryName, budgetCategoryName) }
+            .sumOf { it.amount }
+        val refund = inPeriod
+            .filter { it.type == EntryType.REFUND }
+            .filter { matchesCategory(it.categoryName, budgetCategoryName) }
+            .sumOf { it.amount }
+        return (expense - refund).coerceAtLeast(0.0)
+    }
 
     /**
      * 当前周期结转基数：上一周期「基础额 − 支出」的正向结余（≥0），超支抹平不反向扣。

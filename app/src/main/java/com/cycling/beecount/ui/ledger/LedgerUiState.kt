@@ -104,6 +104,7 @@ sealed interface LedgerEvent {
         val editedNote: String,
         val tagNames: List<String>,
         val editedCounterparty: String? = null,
+        val editedIsReimbursed: Boolean = false,
     ) : LedgerEvent
 
     data object DismissError : LedgerEvent

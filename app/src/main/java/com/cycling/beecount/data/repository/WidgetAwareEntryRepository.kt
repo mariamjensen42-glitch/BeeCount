@@ -48,6 +48,11 @@ class WidgetAwareEntryRepository @Inject constructor(
         refresher.refresh()
     }
 
+    override suspend fun replaceAllWithTagIds(entries: List<Entry>, tagIndex: Map<String, Long>) {
+        delegate.replaceAllWithTagIds(entries, tagIndex)
+        refresher.refresh()
+    }
+
     override suspend fun clearAll() {
         delegate.clearAll()
         refresher.refresh()

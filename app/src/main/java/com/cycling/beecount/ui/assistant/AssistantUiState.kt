@@ -5,6 +5,7 @@ import com.cycling.beecount.domain.model.AiParseResult
 import com.cycling.beecount.domain.model.BudgetProgress
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
+import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.TodayTotals
 import java.time.LocalDate
@@ -27,8 +28,10 @@ data class AssistantUiState(
     val todayEntries: List<Entry> = emptyList(),
     val todayTotals: TodayTotals = TodayTotals(),
     val budgetProgress: List<BudgetProgress> = emptyList(),
+    val quickTemplates: List<QuickTemplate> = emptyList(),
     val today: LocalDate = LocalDate.now(),
     val isParsing: Boolean = false,
+    val isListening: Boolean = false,
     val transientError: String? = null,
     val showCameraSheet: Boolean = false,
 )
@@ -95,4 +98,13 @@ sealed interface AssistantEvent {
 
     /** 关闭相机拍照 Sheet */
     data object DismissCamera : AssistantEvent
+
+    /** 点击一条快捷模板，一键填入确认卡 */
+    data class ApplyTemplate(val template: QuickTemplate) : AssistantEvent
+
+    /** 开始离线语音录入 */
+    data object StartVoice : AssistantEvent
+
+    /** 录音权限被拒绝，提示用户 */
+    data object VoicePermissionDenied : AssistantEvent
 }

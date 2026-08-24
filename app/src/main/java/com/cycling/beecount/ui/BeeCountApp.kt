@@ -51,6 +51,7 @@ import com.cycling.beecount.ui.budget.BudgetManageRoute
 import com.cycling.beecount.ui.calendar.CalendarRoute
 import com.cycling.beecount.ui.ledger.LedgerRoute
 import com.cycling.beecount.ui.settings.CategoryManageRoute
+import com.cycling.beecount.ui.settings.ManageQuickTemplatesRoute
 import com.cycling.beecount.ui.settings.SettingsRoute
 import com.cycling.beecount.ui.settings.TagManageRoute
 import com.cycling.beecount.ui.theme.ComponentDefaults
@@ -163,6 +164,7 @@ fun BeeCountApp() {
                     onOpenCategoryManage = { navController.navigate("category-manage") },
                     onOpenTagManage = { navController.navigate("tag-manage") },
                     onOpenBudgetManage = { navController.navigate("budget-manage") },
+                    onOpenQuickTemplateManage = { navController.navigate("template-manage") },
                 )
             }
             composable("category-manage") {
@@ -170,6 +172,9 @@ fun BeeCountApp() {
             }
             composable("tag-manage") {
                 TagManageRoute(onBack = { navController.popBackStack() })
+            }
+            composable("template-manage") {
+                ManageQuickTemplatesRoute(onBack = { navController.popBackStack() })
             }
             composable("budget-manage") {
                 BudgetManageRoute(

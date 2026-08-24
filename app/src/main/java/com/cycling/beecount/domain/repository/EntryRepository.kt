@@ -44,6 +44,12 @@ interface EntryRepository {
     /** 原子替换全部账目，类别和标签等元数据保留。 */
     suspend fun replaceAll(entries: List<Entry>)
 
+    /**
+     * 原子替换全部账目并写入标签关联，同事务（演示数据等完整数据集用）。
+     * [tagIndex] 以标签名映射其 id——条目里的 [Entry.tags] 据此解析成语料关联。
+     */
+    suspend fun replaceAllWithTagIds(entries: List<Entry>, tagIndex: Map<String, Long>)
+
     /** 清空全部账目（ADR 0008：只清账目，类别/标签保留） */
     suspend fun clearAll()
 

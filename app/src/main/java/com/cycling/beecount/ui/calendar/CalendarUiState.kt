@@ -39,5 +39,6 @@ sealed interface CalendarEvent {
         val editedNote: String,
         val tagNames: List<String>,
         val editedCounterparty: String? = null,
+        val editedIsReimbursed: Boolean = false,
     ) : CalendarEvent
 }

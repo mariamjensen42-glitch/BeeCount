@@ -13,6 +13,9 @@ import java.time.LocalDate
  *
  * [sourceRef] 是来源引用（ADR 0012）：微信导入的账目记录其交易单号，可空、全库唯一，
  * 用于去重与"撤销本次导入"按集合定位；手动/AI/OCR 记账为 null。
+ *
+ * [isReimbursed] 仅对支出有效：标记该笔支出是否已报销（如因公垫付后被公司打款）。
+ * 其余类型（收入/退款/中性）恒为 false 且 UI 不展示该标记。
  */
 data class Entry(
     val id: Long = 0L,
@@ -26,4 +29,5 @@ data class Entry(
     val tags: List<Tag> = emptyList(),
     val sourceRef: String? = null,
     val counterparty: String? = null,
+    val isReimbursed: Boolean = false,
 )

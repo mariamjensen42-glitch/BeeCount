@@ -28,6 +28,7 @@ class ExportEntriesCsvUseCase @Inject constructor(
                     when (entry.type) {
                         com.cycling.beecount.domain.model.EntryType.EXPENSE -> "支出"
                         com.cycling.beecount.domain.model.EntryType.INCOME -> "收入"
+                        com.cycling.beecount.domain.model.EntryType.REFUND -> "退款"
                         com.cycling.beecount.domain.model.EntryType.NEUTRAL -> "中性"
                     }
                 )

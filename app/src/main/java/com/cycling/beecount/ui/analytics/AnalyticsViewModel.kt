@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AnnualAnalytics
 import com.cycling.beecount.domain.model.ComparisonAnalytics
+import com.cycling.beecount.domain.model.GrowthAnalytics
 import com.cycling.beecount.domain.model.MonthlyAnalytics
+import com.cycling.beecount.domain.model.NetAssetTrend
 import com.cycling.beecount.domain.query.EntryQuery
 import com.cycling.beecount.domain.usecase.BuildComparisonAnalyticsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,6 +72,29 @@ class AnalyticsViewModel @Inject constructor(
         .flatMapLatest { query -> buildComparisonFlow(query) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** 模块 G：深度统计（频次/客单价/中位数/波动/星期/时段/刚性/健康评分） */
+    val growthAnalytics: StateFlow<GrowthAnalytics?> = _uiState
+        .map { state ->
+            if (state.granularity == AnalyticsGranularity.MONTH) {
+                GrowthQuery.MONTH(state.selectedMonth)
+            } else {
+                GrowthQuery.YEAR(state.selectedYear)
+            }
+        }
+        .distinctUntilChanged()
+        .flatMapLatest { query -> buildGrowthFlow(query) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** 模块 G：历史净资产趋势（全量历史，独立于当前粒度） */
+    val netAssetTrend: StateFlow<NetAssetTrend?> = entryQuery.buildNetAssetTrend()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private fun buildGrowthFlow(query: GrowthQuery): Flow<GrowthAnalytics?> =
+        when (query) {
+            is GrowthQuery.MONTH -> entryQuery.buildGrowth(query.month)
+            is GrowthQuery.YEAR -> entryQuery.buildGrowth(query.year)
+        }
+
     private fun buildComparisonFlow(query: ComparisonQuery): Flow<ComparisonAnalytics?> =
         when (query) {
             is ComparisonQuery.MONTH -> buildComparison(query.month)
@@ -126,4 +151,10 @@ class AnalyticsViewModel @Inject constructor(
 private sealed interface ComparisonQuery {
     data class MONTH(val month: YearMonth) : ComparisonQuery
     data class YEAR(val year: Int) : ComparisonQuery
+}
+
+/** 模块 G 深度统计查询：月度用 month，年度用 year */
+private sealed interface GrowthQuery {
+    data class MONTH(val month: YearMonth) : GrowthQuery
+    data class YEAR(val year: Int) : GrowthQuery
 }

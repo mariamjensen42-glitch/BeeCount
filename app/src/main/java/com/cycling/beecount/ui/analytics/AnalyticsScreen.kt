@@ -13,6 +13,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +56,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.beecount.domain.model.AnnualAnalytics
@@ -63,9 +66,18 @@ import com.cycling.beecount.domain.model.CategoryRank
 import com.cycling.beecount.domain.model.CategorySlice
 import com.cycling.beecount.domain.model.ComparisonAnalytics
 import com.cycling.beecount.domain.model.DailyExpense
+import com.cycling.beecount.domain.model.ExpenseRigidity
+import com.cycling.beecount.domain.model.FinanceHealthScore
+import com.cycling.beecount.domain.model.GrowthAnalytics
+import com.cycling.beecount.domain.model.HealthMetric
 import com.cycling.beecount.domain.model.MonthlyAnalytics
 import com.cycling.beecount.domain.model.MonthlyExpensePoint
+import com.cycling.beecount.domain.model.NetAssetTrend
 import com.cycling.beecount.domain.model.PeriodSummary
+import com.cycling.beecount.domain.model.TagCloudItem
+import com.cycling.beecount.domain.model.TimeSlotAmount
+import com.cycling.beecount.domain.model.WeekendVsWeekday
+import com.cycling.beecount.domain.usecase.GrowthAggregator
 import com.cycling.beecount.ui.assistant.formatMoney
 import com.cycling.beecount.ui.theme.ExpenseRed
 import com.cycling.beecount.ui.theme.TerminalCyan
@@ -94,12 +106,16 @@ fun AnalyticsRoute(
     val monthly by viewModel.monthlyAnalytics.collectAsStateWithLifecycle()
     val annual by viewModel.annualAnalytics.collectAsStateWithLifecycle()
     val comparison by viewModel.comparisonAnalytics.collectAsStateWithLifecycle()
+    val growth by viewModel.growthAnalytics.collectAsStateWithLifecycle()
+    val netAssetTrend by viewModel.netAssetTrend.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(initialMonth) { viewModel.onEvent(AnalyticsEvent.SetMonth(initialMonth)) }
     AnalyticsScreen(
         uiState = uiState,
         monthly = monthly,
         annual = annual,
         comparison = comparison,
+        growth = growth,
+        netAssetTrend = netAssetTrend,
         onEvent = viewModel::onEvent,
         onBack = onBack,
     )
@@ -117,6 +133,8 @@ fun AnalyticsScreen(
     monthly: MonthlyAnalytics?,
     annual: AnnualAnalytics?,
     comparison: ComparisonAnalytics?,
+    growth: GrowthAnalytics?,
+    netAssetTrend: NetAssetTrend?,
     onEvent: (AnalyticsEvent) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -142,11 +160,15 @@ fun AnalyticsScreen(
                 AnalyticsGranularity.MONTH -> MonthlyContent(
                     monthly = monthly,
                     comparison = comparison,
+                    growth = growth,
+                    netAssetTrend = netAssetTrend,
                     modifier = Modifier.weight(1f),
                 )
                 AnalyticsGranularity.YEAR -> AnnualContent(
                     annual = annual,
                     comparison = comparison,
+                    growth = growth,
+                    netAssetTrend = netAssetTrend,
                     uiState = uiState,
                     onEvent = onEvent,
                     modifier = Modifier.weight(1f),
@@ -277,6 +299,8 @@ private fun PeriodSelector(
 private fun MonthlyContent(
     monthly: MonthlyAnalytics?,
     comparison: ComparisonAnalytics?,
+    growth: GrowthAnalytics?,
+    netAssetTrend: NetAssetTrend?,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -302,6 +326,18 @@ private fun MonthlyContent(
                 item { CategoryDonutCard(data.categoryRanks) }
             }
             item { DailyTrendCard(data.dailyExpense, data.maxDaily) }
+            if (growth != null) {
+                item { GrowthSpendingCard(growth) }
+                item { GrowthHabitsCard(growth) }
+                item { GrowthRigidityCard(growth) }
+                item { HealthScoreCard(growth.health) }
+                if (growth.tagCloud.isNotEmpty()) {
+                    item { TagCloudCard(growth.tagCloud) }
+                }
+            }
+            if (netAssetTrend != null && netAssetTrend.points.isNotEmpty()) {
+                item { NetAssetTrendCard(netAssetTrend, growth) }
+            }
         }
     }
 }
@@ -310,6 +346,8 @@ private fun MonthlyContent(
 private fun AnnualContent(
     annual: AnnualAnalytics?,
     comparison: ComparisonAnalytics?,
+    growth: GrowthAnalytics?,
+    netAssetTrend: NetAssetTrend?,
     uiState: AnalyticsUiState,
     onEvent: (AnalyticsEvent) -> Unit,
     modifier: Modifier = Modifier,
@@ -343,6 +381,19 @@ private fun AnnualContent(
                 AnnualHeatmapCard(data.year, data.dailyHeatmap)
             }
             item { HighlightsCard(data.entryCount, data.highlights) }
+            if (growth != null) {
+                item { GrowthSpendingCard(growth) }
+                item { GrowthHabitsCard(growth) }
+                item { GrowthRigidityCard(growth) }
+                item { HealthScoreCard(growth.health) }
+                if (growth.tagCloud.isNotEmpty()) {
+                    item { TagCloudCard(growth.tagCloud) }
+                }
+                item { AnnualReportCard(data.year, growth, data.expense, data.income) }
+            }
+            if (netAssetTrend != null && netAssetTrend.points.isNotEmpty()) {
+                item { NetAssetTrendCard(netAssetTrend, growth) }
+            }
         }
     }
 }
@@ -952,3 +1003,415 @@ private val PaletteColors = listOf(
     Color(0xFF9575CD),
     Color(0xFF4FC3F7),
 )
+
+// ==================================================================================
+// 模块 G：高级统计分析区块
+// ==================================================================================
+
+/** 支出分布统计卡（176-180）：频次 / 客单价 / 中位数 / 单笔极值 / 波动 */
+@Composable
+private fun GrowthSpendingCard(growth: GrowthAnalytics) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("支出分布", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            val stats = growth.spendingStats
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatCell("支出笔数", "${stats.expenseCount} 笔", Modifier.weight(1f))
+                StatCell("客单价", "¥${formatMoney(stats.avgTicket)}", Modifier.weight(1f))
+                StatCell("中位数", "¥${formatMoney(stats.median)}", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatCell("最大支出", stats.maxExpense?.let { "¥${formatMoney(it.amount)} · ${it.categoryName}" } ?: "—", Modifier.weight(1f))
+                StatCell("最大收入", stats.maxIncome?.let { "¥${formatMoney(it.amount)} · ${it.categoryName}" } ?: "—", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
+            val varianceLine = buildAnnotatedString {
+                append("方差 ")
+                append("${formatMoney(stats.variance)}")
+                append("   标准差 ")
+                append("${formatMoney(stats.stdDev)}")
+                append("   变异系数 ")
+                append("${"%.2f".format(stats.coefficientOfVariation)}")
+            }
+            Text(varianceLine, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            if (stats.perCategoryCounts.isNotEmpty()) {
+                Text("消费频次 TOP", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(6.dp))
+                stats.perCategoryCounts.take(5).forEach { categoryCount ->
+                    FrequencyRow(categoryCount.name, categoryCount.count)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun FrequencyRow(name: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(76.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "$count 次",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+/** 消费习惯卡（181-182）：周末 vs 工作日 + 时间段分布 */
+@Composable
+private fun GrowthHabitsCard(growth: GrowthAnalytics) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("消费习惯", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            WeekendVsWeekdayBlock(growth.weekendVsWeekday)
+            Spacer(Modifier.height(12.dp))
+            TimeSlotBlock(growth.timeSlots)
+            Spacer(Modifier.height(12.dp))
+            WeekdayDotBlock(growth.weekdayStats)
+        }
+    }
+}
+
+@Composable
+private fun WeekendVsWeekdayBlock(wv: WeekendVsWeekday) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        StatCell("周末日均", "¥${formatMoney(wv.weekendPerDay)}", Modifier.weight(1f))
+        StatCell("工作日日均", "¥${formatMoney(wv.weekdayPerDay)}", Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(6.dp))
+    val extraText = if (wv.extraPercent >= 0) "周末比工作日多花" else "周末比工作日少花"
+    val extraAbs = "%.1f%%".format(kotlin.math.abs(wv.extraPercent))
+    Text(
+        text = "$extraText $extraAbs",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (wv.extraPercent > 0) ExpenseRed else IncomeGreen,
+    )
+}
+
+@Composable
+private fun TimeSlotBlock(slots: List<TimeSlotAmount>) {
+    Text("时间段分布", style = MaterialTheme.typography.labelLarge)
+    Spacer(Modifier.height(8.dp))
+    slots.forEach { slot ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(slot.slot.label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(48.dp))
+            Box(
+                modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(slot.fraction).clip(RoundedCornerShape(5.dp)).background(TerminalCyan))
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("¥${formatMoney(slot.amount)}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp), textAlign = TextAlign.End)
+        }
+    }
+}
+
+@Composable
+private fun WeekdayDotBlock(stats: List<com.cycling.beecount.domain.model.WeekdayStats>) {
+    Text("星期几节奏", style = MaterialTheme.typography.labelLarge)
+    Spacer(Modifier.height(8.dp))
+    val max = stats.maxOfOrNull { it.expense } ?: 0.0
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        stats.forEach { stat ->
+            val label = when (stat.dayOfWeek) {
+                java.time.DayOfWeek.MONDAY -> "一"
+                java.time.DayOfWeek.TUESDAY -> "二"
+                java.time.DayOfWeek.WEDNESDAY -> "三"
+                java.time.DayOfWeek.THURSDAY -> "四"
+                java.time.DayOfWeek.FRIDAY -> "五"
+                java.time.DayOfWeek.SATURDAY -> "六"
+                java.time.DayOfWeek.SUNDAY -> "日"
+            }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                val h = if (max > 0) (stat.expense / max).toFloat() else 0f
+                Box(Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                    Box(Modifier.fillMaxWidth().fillMaxHeight(h).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(ExpenseRed))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** 刚性结构卡（183-185）：刚性 / 可变 / 冲动支出占比 */
+@Composable
+private fun GrowthRigidityCard(growth: GrowthAnalytics) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("支出结构", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            RigidityRatioBlock(growth.rigidity)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "刚性 = 维持基本生活的必要支出（居住/医疗/教育/交通）；冲动 = 可变支出中偏「想要」的非必需部分（购物/娱乐/人情）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RigidityRatioBlock(rigidity: ExpenseRigidity) {
+    RigidityBar("刚性支出", rigidity.rigidExpense, rigidity.rigidRatio, TerminalGreen)
+    Spacer(Modifier.height(8.dp))
+    RigidityBar("可选支出", rigidity.variableExpense, rigidity.variableRatio, TerminalCyan)
+    Spacer(Modifier.height(8.dp))
+    RigidityBar("冲动消费", rigidity.impulseExpense, rigidity.impulseRatio, ExpenseRed)
+}
+
+@Composable
+private fun RigidityBar(label: String, amount: Double, ratio: Float, barColor: Color) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(64.dp))
+        Box(
+            modifier = Modifier.weight(1f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(6.dp)).background(barColor))
+        }
+        Spacer(Modifier.width(12.dp))
+        Text("${"%.0f%%".format(ratio * 100)}  ¥${formatMoney(amount)}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+    }
+}
+
+/** 财务健康评分卡（188）：加权总分 + 分维度 */
+@Composable
+private fun HealthScoreCard(health: FinanceHealthScore) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("财务健康评分", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(
+                    text = "${health.total} · ${health.grade}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = healthColor(health.total),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            health.metrics.forEach { metric ->
+                HealthMetricRow(metric)
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthMetricRow(metric: HealthMetric) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(metric.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(72.dp))
+        Box(
+            modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(metric.score / 100f).clip(RoundedCornerShape(5.dp)).background(healthColor(metric.score)))
+        }
+        Spacer(Modifier.width(10.dp))
+        Text("${metric.score}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(28.dp), textAlign = TextAlign.End)
+    }
+    Text(
+        text = metric.detail,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 2.dp),
+    )
+}
+
+private fun healthColor(score: Int): Color = when {
+    score >= 80 -> IncomeGreen
+    score >= 50 -> TerminalCyan
+    else -> ExpenseRed
+}
+
+/** 净资产趋势折线卡（186-187）：历史累计净资产折线 + 资产负债率（超支占比）变化曲线，可回溯 */
+@Composable
+private fun NetAssetTrendCard(trend: NetAssetTrend, growth: GrowthAnalytics?) {
+    val points = trend.points
+    val maxAbs = points.maxOfOrNull { kotlin.math.abs(it.netAsset) } ?: 0.0
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("净资产趋势", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            val latest = points.last()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                StatCell("当前净资产", "¥${formatMoney(latest.netAsset)}", Modifier.weight(1f))
+                StatCell("资产负债率", "${"%.1f%%".format(latest.deficitRatio * 100)}", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
+            if (points.size < 2) {
+                Text("数据不足，无法绘制趋势", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                val baselineColor = MaterialTheme.colorScheme.outlineVariant
+                Canvas(
+                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                ) {
+                    // 上侧（0..50%）绘制净资产（正上负下，0 为中轴）；下侧（50%..95%）绘制资产负债率 0..1
+                    val midY = size.height * 0.5f
+                    val netRange = (size.height * 0.5f - 8.dp.toPx()).coerceAtLeast(1f)
+                    val debtBand = size.height * 0.44f
+                    val netY = { value: Double ->
+                        midY - (value / maxAbs).toFloat().coerceIn(-1f, 1f) * netRange
+                    }
+                    val debtY = { ratio: Float -> size.height * 0.96f - ratio.coerceIn(0f, 1f) * debtBand }
+                    // 净资产 0 基准线
+                    drawLine(color = baselineColor, start = Offset(0f, midY), end = Offset(size.width, midY), strokeWidth = 1.dp.toPx())
+                    val stepX = size.width / (points.size - 1)
+                    val netPath = Path()
+                    val debtPath = Path()
+                    points.forEachIndexed { i, p ->
+                        val x = stepX * i
+                        if (i == 0) {
+                            netPath.moveTo(x, netY(p.netAsset))
+                            debtPath.moveTo(x, debtY(p.deficitRatio))
+                        } else {
+                            netPath.lineTo(x, netY(p.netAsset))
+                            debtPath.lineTo(x, debtY(p.deficitRatio))
+                        }
+                    }
+                    drawPath(path = netPath, color = TerminalCyan, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    drawPath(path = debtPath, color = ExpenseRed, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NetTrendLegend(TerminalCyan, "净资产")
+                    NetTrendLegend(ExpenseRed, "资产负债率")
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            val startLabel = points.first().point
+            val endLabel = points.last().point
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("${startLabel.year}·${startLabel.monthValue}月${startLabel.dayOfMonth}日", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${endLabel.year}·${endLabel.monthValue}月${endLabel.dayOfMonth}日", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NetTrendLegend(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** 标签云卡（模块 G）：消费越多字体越大，颜色取标签自身色 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TagCloudCard(items: List<TagCloudItem>) {
+    val maxAmount = items.maxOfOrNull { it.amount } ?: 0.0
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("标签云", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "消费越多字体越大",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items.forEach { item ->
+                    TagCloudWord(item, maxAmount)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagCloudWord(item: TagCloudItem, maxAmount: Double) {
+    // 字号 12..28sp，按金额相对最大值对数缩放；仅一个标签时取最小字号
+    val ratio = if (maxAmount > 0.0) (item.amount / maxAmount).toFloat() else 0f
+    val fontSize = 12f + ratio.coerceIn(0f, 1f) * 16f
+    val color = Color(item.color)
+    Box {
+        Text(
+            text = item.name,
+            fontSize = fontSize.sp,
+            style = MaterialTheme.typography.bodyMedium,
+            color = color,
+            maxLines = 1,
+        )
+    }
+}
+
+/** 年度收支报告卡（189）：自动生成的图文报告 */
+@Composable
+private fun AnnualReportCard(year: Int, growth: GrowthAnalytics, expense: Double, income: Double) {
+    val report = remember(growth, expense, income, year) {
+        GrowthAggregator.annualReport(year, growth, income, expense)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("年度收支报告 · ${year}", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            report.sections.forEach { section ->
+                Text(section.title, style = MaterialTheme.typography.labelLarge, color = TerminalCyan)
+                Spacer(Modifier.height(4.dp))
+                section.lines.forEach { line ->
+                    Text("· $line", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(2.dp))
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+    }
+}

@@ -43,13 +43,16 @@ class LedgerViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 筛选结果合计（无筛选时为全部账目合计） */
+    /** 筛选结果合计（无筛选时为全部账目合计；退款从支出中扣减） */
     val filteredTotals: StateFlow<TodayTotals> = filteredEntries
         .map { entries ->
             entries.fold(TodayTotals()) { acc, entry ->
                 when (entry.type) {
                     com.cycling.beecount.domain.model.EntryType.EXPENSE ->
                         acc.copy(expense = acc.expense + entry.amount)
+
+                    com.cycling.beecount.domain.model.EntryType.REFUND ->
+                        acc.copy(expense = (acc.expense - entry.amount).coerceAtLeast(0.0))
 
                     com.cycling.beecount.domain.model.EntryType.INCOME ->
                         acc.copy(income = acc.income + entry.amount)
@@ -152,6 +155,7 @@ class LedgerViewModel @Inject constructor(
                     editedNote = event.editedNote,
                     tagNames = event.tagNames,
                     editedCounterparty = event.editedCounterparty,
+                    editedIsReimbursed = event.editedIsReimbursed,
                 )
                 _uiState.update { it.copy(editingEntry = null) }
             } catch (e: kotlinx.coroutines.CancellationException) {

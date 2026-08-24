@@ -2,20 +2,47 @@ package com.cycling.beecount.domain.usecase
 
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.Tag
+import com.cycling.beecount.domain.model.nextTagColor
 import com.cycling.beecount.domain.repository.EntryRepository
+import com.cycling.beecount.domain.repository.TagRepository
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 /**
  * 用例：用近五年的确定性样本替换全部账目，便于体验图表分析。
- * 样本不包含未来日期，保留用户的类别和标签元数据。
+ * 样本不包含未来日期，保留用户的类别；演示标签按备注关键词确定性派生，
+ * 写账目时同时写入标签关联，让「标签云」分析（模块 G）有可见差异。
  */
 class FillDemoDataUseCase @Inject constructor(
     private val entryRepository: EntryRepository,
+    private val tagRepository: TagRepository,
 ) {
 
     suspend operator fun invoke(today: LocalDate = LocalDate.now()) {
-        entryRepository.replaceAll(buildEntries(today))
+        val entries = buildEntries(today)
+        val tagIndex = resolveTagIndex(entries)
+        entryRepository.replaceAllWithTagIds(entries, tagIndex)
+    }
+
+    /** 注册演示条目用到的全部标签，复用库内同名标签；返回标签名 → 真实 id */
+    private suspend fun resolveTagIndex(entries: List<Entry>): Map<String, Long> {
+        val existing = tagRepository.observeAll().first()
+        val existingByName = existing.associateBy { it.name }
+        val usedColors = existing.map { it.color }.toMutableSet()
+        val index = mutableMapOf<String, Long>()
+        entries.flatMap { it.tags }.map { it.name }.distinct().forEach { name ->
+            val existingTag = existingByName[name]
+            if (existingTag != null) {
+                index[name] = existingTag.id
+            } else {
+                val color = nextTagColor(usedColors)
+                index[name] = tagRepository.create(name = name, color = color)
+                usedColors += color
+            }
+        }
+        return index
     }
 
     internal fun buildEntries(today: LocalDate): List<Entry> {
@@ -51,7 +78,11 @@ class FillDemoDataUseCase @Inject constructor(
         }
         addDailyActivity(entries, startYear, today)
         return entries.take(DEMO_ENTRY_COUNT).mapIndexed { index, entry ->
-            entry.copy(createdAt = entry.date.toEpochDay() * 86_400_000L + index)
+            // 把入库时间分散到一天的不同时段，让「时间段」分析（模块 G）有可见差异
+            val hour = index % 24
+            val minute = index % 60
+            val createdAt = entry.date.toEpochDay() * 86_400_000L + hour * 3_600_000L + minute * 60_000L
+            entry.copy(createdAt = createdAt)
         }
     }
 
@@ -130,7 +161,33 @@ class FillDemoDataUseCase @Inject constructor(
         categoryName = category,
         date = date,
         note = note,
+        tags = demoTags(note),
     )
+
+    /** 按备注关键词确定性派生标签，让「标签云」分析（模块 G）有可见差异。颜色占位，真实色由标签库决定。 */
+    private fun demoTags(note: String): List<Tag> {
+        val name = when {
+            note.contains("早餐") || note.contains("咖啡") || note.contains("早午餐") -> "早餐"
+            note.contains("午餐") || note.contains("聚餐") -> "午餐"
+            note.contains("地铁") || note.contains("通勤") || note.contains("单车") -> "通勤"
+            note.contains("电影") || note.contains("展览") || note.contains("音乐") || note.contains("视频") -> "娱乐"
+            note.contains("话费") -> "话费"
+            note.contains("房租") -> "房租"
+            note.contains("水电") || note.contains("燃气") -> "水电"
+            note.contains("课程") || note.contains("图书") || note.contains("学习") -> "学习"
+            note.contains("药品") || note.contains("健康") || note.contains("体检") -> "健康"
+            note.contains("礼金") || note.contains("礼物") -> "人情"
+            note.contains("衣物") || note.contains("用品") || note.contains("采购") || note.contains("购买") || note.contains("便利店") -> "购物"
+            note.contains("旅行") || note.contains("短途") -> "旅行"
+            note.contains("报销") -> "报销"
+            note.contains("理财") -> "理财"
+            note.contains("工资") -> "工资"
+            note.contains("红包") -> "红包"
+            note.contains("奖金") -> "奖金"
+            else -> "日常"
+        }
+        return listOf(Tag(id = 0L, name = name, color = 0L))
+    }
 
     companion object {
         const val DEMO_ENTRY_COUNT = 9_000

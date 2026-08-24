@@ -36,6 +36,7 @@ class ImportWeChatBillUseCase @Inject constructor(
             to = newEntries.maxOfOrNull { it.date } ?: draft.entries.maxOfOrNull { it.date },
             expenseCount = newEntries.count { it.type == EntryType.EXPENSE },
             incomeCount = newEntries.count { it.type == EntryType.INCOME },
+            refundCount = newEntries.count { it.type == EntryType.REFUND },
             neutralCount = newEntries.count { it.type == EntryType.NEUTRAL },
             skippedCount = draft.skippedCount,
             duplicateCount = draft.entries.size - newEntries.size,
@@ -80,12 +81,13 @@ class ImportWeChatBillUseCase @Inject constructor(
     }
 }
 
-/** 导入确认层展示的内容（ADR 0012）：账单时间范围、收支/中性笔数、跳过与重复、分类分布 */
+/** 导入确认层展示的内容（ADR 0012）：账单时间范围、收支/退款/中性笔数、跳过与重复、分类分布 */
 data class WeChatImportPreview(
     val from: LocalDate?,
     val to: LocalDate?,
     val expenseCount: Int,
     val incomeCount: Int,
+    val refundCount: Int = 0,
     val neutralCount: Int,
     val skippedCount: Int,
     val duplicateCount: Int,

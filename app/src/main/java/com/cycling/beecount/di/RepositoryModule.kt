@@ -1,6 +1,7 @@
 package com.cycling.beecount.di
 
 import com.cycling.beecount.data.repository.DataStoreAiKeyRepository
+import com.cycling.beecount.data.repository.DataStoreQuickTemplateRepository
 import com.cycling.beecount.data.repository.RoomBudgetRepository
 import com.cycling.beecount.data.repository.RoomCategoryRepository
 import com.cycling.beecount.data.repository.RoomEntryRepository
@@ -10,9 +11,12 @@ import com.cycling.beecount.domain.repository.AiKeyRepository
 import com.cycling.beecount.domain.repository.BudgetRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
+import com.cycling.beecount.domain.repository.QuickTemplateRepository
 import com.cycling.beecount.domain.repository.TagRepository
 import com.cycling.beecount.domain.usecase.MlKitOcrTextRecognizer
 import com.cycling.beecount.domain.usecase.OcrTextRecognizer
+import com.cycling.beecount.domain.usecase.OnDeviceSpeechToText
+import com.cycling.beecount.domain.usecase.SpeechToText
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -51,5 +55,12 @@ abstract class RepositoryModule {
     abstract fun bindBudgetRepository(impl: RoomBudgetRepository): BudgetRepository
 
     @Binds
+    @Singleton
+    abstract fun bindQuickTemplateRepository(impl: DataStoreQuickTemplateRepository): QuickTemplateRepository
+
+    @Binds
     abstract fun bindOcrTextRecognizer(impl: MlKitOcrTextRecognizer): OcrTextRecognizer
+
+    @Binds
+    abstract fun bindSpeechRecognizer(impl: OnDeviceSpeechToText): SpeechToText
 }

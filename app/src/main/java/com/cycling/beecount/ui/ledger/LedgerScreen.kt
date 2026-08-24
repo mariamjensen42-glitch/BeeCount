@@ -144,7 +144,7 @@ fun LedgerScreen(
                 entry = entry,
                 categories = uiState.allCategories,
                 tags = uiState.allTags,
-                onSave = { type, amount, categoryName, date, note, tagNames, counterparty ->
+                onSave = { type, amount, categoryName, date, note, tagNames, counterparty, isReimbursed ->
                     onEvent(
                         LedgerEvent.SaveEditEntry(
                             entryId = entry.id,
@@ -155,6 +155,7 @@ fun LedgerScreen(
                             editedNote = note,
                             tagNames = tagNames,
                             editedCounterparty = counterparty,
+                            editedIsReimbursed = isReimbursed,
                         )
                     )
                 },
@@ -329,6 +330,11 @@ private fun FilterPanel(uiState: LedgerUiState, onEvent: (LedgerEvent) -> Unit) 
                     label = { Text("收入") },
                 )
                 FilterChip(
+                    selected = filters.type == EntryType.REFUND,
+                    onClick = { onEvent(LedgerEvent.SetEntryType(EntryType.REFUND)) },
+                    label = { Text("退款") },
+                )
+                FilterChip(
                     selected = filters.type == EntryType.NEUTRAL,
                     onClick = { onEvent(LedgerEvent.SetEntryType(EntryType.NEUTRAL)) },
                     label = { Text("中性") },
@@ -491,7 +497,9 @@ private fun LedgerList(
 
 @Composable
 private fun DayHeader(date: LocalDate, dayEntries: List<Entry>) {
-    val expense = dayEntries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount }
+    val netExpense = dayEntries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount } -
+        dayEntries.filter { it.type == EntryType.REFUND }.sumOf { it.amount }
+    val expense = netExpense.coerceAtLeast(0.0)
     val income = dayEntries.filter { it.type == EntryType.INCOME }.sumOf { it.amount }
     Row(
         modifier = Modifier
@@ -573,12 +581,25 @@ private fun LedgerEntryRow(entry: Entry, onClick: (Entry) -> Unit) {
                         style = MaterialTheme.typography.titleMedium,
                         color = IncomeGreen,
                     )
+                    EntryType.REFUND -> Text(
+                        text = "-¥${formatMoney(entry.amount)}（退）",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                     EntryType.NEUTRAL -> Text(
                         text = "¥${formatMoney(entry.amount)}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (entry.type == EntryType.EXPENSE && entry.isReimbursed) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "已报销",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             if (entry.tags.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))

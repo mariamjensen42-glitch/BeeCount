@@ -108,6 +108,17 @@ class BudgetMathTest {
     }
 
     @Test
+    fun `spent 退款从支出中冲减`() {
+        val entries = listOf(
+            entry(50.0, "餐饮", LocalDate.of(2026, 7, 5)),
+            entry(30.0, "餐饮", LocalDate.of(2026, 7, 6)),
+            entry(20.0, "餐饮", LocalDate.of(2026, 7, 7), type = EntryType.REFUND),
+        )
+        val period = BudgetPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
+        assertEquals(60.0, BudgetMath.spent(entries, period, "餐饮", emptySet()), 1e-6)
+    }
+
+    @Test
     fun `结转结入上期正向结余`() {
         val b = budget(amount = 1000.0, carryOver = true)
         val today = LocalDate.of(2026, 7, 15)

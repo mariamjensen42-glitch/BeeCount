@@ -31,6 +31,8 @@ class AiEntryJsonDecoder @Inject constructor(
         val tags: List<String>? = null,
         val note: String? = null,
         val counterparty: String? = null,
+        val is_refund: Boolean? = null,
+        val is_reimbursed: Boolean? = null,
     )
 
     /**
@@ -45,6 +47,7 @@ class AiEntryJsonDecoder @Inject constructor(
         val type = when (dto.type?.lowercase()) {
             "expense" -> EntryType.EXPENSE
             "income" -> EntryType.INCOME
+            "refund" -> EntryType.REFUND
             else -> {
                 Timber.w("AI 返回未知 type：%s", dto.type)
                 return@runCatching null
@@ -80,7 +83,10 @@ class AiEntryJsonDecoder @Inject constructor(
             .take(3)
         val note = dto.note?.trim()?.takeIf { it.isNotEmpty() }
         val counterparty = dto.counterparty?.trim()?.takeIf { it.isNotEmpty() }
-        Timber.d("AI JSON 解码成功：type=%s，amount=%s，category=%s，date=%s", type, amount, category, date)
+        val isRefund = dto.is_refund ?: (type == EntryType.REFUND)
+        val isReimbursed = dto.is_reimbursed ?: false
+        Timber.d("AI JSON 解码成功：type=%s，amount=%s，category=%s，date=%s，isRefund=%s，isReimbursed=%s",
+            type, amount, category, date, isRefund, isReimbursed)
         AiParseResult(
             recordable = true,
             type = type,
@@ -91,6 +97,8 @@ class AiEntryJsonDecoder @Inject constructor(
             tags = tags,
             note = note,
             counterparty = counterparty,
+            isRefund = isRefund,
+            isReimbursed = isReimbursed,
         )
     }.onFailure { e ->
         Timber.w(e, "AI JSON 解码失败：%s", e.message)

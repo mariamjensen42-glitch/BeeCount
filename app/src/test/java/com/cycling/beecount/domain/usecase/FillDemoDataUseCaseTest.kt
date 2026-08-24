@@ -2,6 +2,7 @@ package com.cycling.beecount.domain.usecase
 
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.Tag
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -26,7 +27,7 @@ class FillDemoDataUseCaseTest {
         )
         val repository = FakeEntryRepository(listOf(existing))
 
-        FillDemoDataUseCase(repository)(today)
+        FillDemoDataUseCase(repository, FakeTagRepository())(today)
 
         assertEquals(1, repository.replaceAllCalls)
         assertFalse(repository.storedEntries.any { it.note == "旧账目" })
@@ -35,7 +36,7 @@ class FillDemoDataUseCaseTest {
 
     @Test
     fun `creates rich five-year entries without future dates`() {
-        val useCase = FillDemoDataUseCase(FakeEntryRepository(emptyList()))
+        val useCase = FillDemoDataUseCase(FakeEntryRepository(emptyList()), FakeTagRepository())
 
         val entries = useCase.buildEntries(today)
 
@@ -53,7 +54,7 @@ class FillDemoDataUseCaseTest {
 
     @Test
     fun `current partial month only contains elapsed sample dates while past years are complete`() {
-        val useCase = FillDemoDataUseCase(FakeEntryRepository(emptyList()))
+        val useCase = FillDemoDataUseCase(FakeEntryRepository(emptyList()), FakeTagRepository())
         val partialMonthToday = LocalDate.of(2026, 8, 9)
 
         val entries = useCase.buildEntries(partialMonthToday)
@@ -61,5 +62,28 @@ class FillDemoDataUseCaseTest {
         assertTrue(entries.filter { it.date.year == partialMonthToday.year && it.date.monthValue == 8 }.all { it.date <= partialMonthToday })
         assertTrue(entries.none { it.date.year == partialMonthToday.year && it.date.monthValue > 8 })
         assertTrue(entries.any { it.date == LocalDate.of(2025, 12, 20) })
+    }
+
+    @Test
+    fun `demo entries derive deterministic tags and write associations`() = runTest {
+        val repository = FakeEntryRepository(emptyList())
+        val tagRepository = FakeTagRepository()
+
+        FillDemoDataUseCase(repository, tagRepository)(today)
+
+        assertEquals(1, repository.replaceAllWithTagIdsCalls)
+        // 所有演示条目都带标签；标签库据此建立了去重后的标签集
+        assertTrue(repository.storedEntries.all { it.tags.isNotEmpty() })
+        assertTrue(tagRepository.tags.size > 0)
+    }
+
+    @Test
+    fun `demo tags cover expected labels`() {
+        val useCase = FillDemoDataUseCase(FakeEntryRepository(emptyList()), FakeTagRepository())
+        val entries = useCase.buildEntries(today)
+        val tagNames = entries.flatMap { it.tags }.map { it.name }.toSet()
+        assertTrue(tagNames.contains("早餐"))
+        assertTrue(tagNames.contains("通勤"))
+        assertTrue(tagNames.contains("房租"))
     }
 }

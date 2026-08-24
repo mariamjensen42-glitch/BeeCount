@@ -123,6 +123,7 @@ class EntryIntake @Inject constructor(
         editedCategoryName: String,
         originalText: String,
         tags: List<String> = emptyList(),
+        editedIsReimbursed: Boolean = result.isReimbursed,
     ): Entry {
         require(result.recordable) { "recordable=false 的结果不能入库" }
         val type = requireNotNull(result.type) { "账目类型缺失" }
@@ -142,6 +143,7 @@ class EntryIntake @Inject constructor(
             date = date,
             note = originalText,
             counterparty = result.counterparty,
+            isReimbursed = editedIsReimbursed && type == EntryType.EXPENSE,
         )
         val id = entryRepository.addWithTags(entry, resolvedTags.map { it.id })
         return entry.copy(id = id, tags = resolvedTags)
@@ -157,6 +159,7 @@ class EntryIntake @Inject constructor(
         editedNote: String,
         tagNames: List<String>,
         editedCounterparty: String? = null,
+        editedIsReimbursed: Boolean = entry.isReimbursed,
     ): Entry {
         require(entry.id > 0L) { "编辑账目必须已有入库 id" }
         require(!editedDate.isAfter(currentDate())) { "账目日期不能晚于今天" }
@@ -173,6 +176,7 @@ class EntryIntake @Inject constructor(
             note = editedNote,
             tags = resolvedTags,
             counterparty = editedCounterparty?.trim()?.takeIf { it.isNotEmpty() },
+            isReimbursed = editedIsReimbursed && editedType == EntryType.EXPENSE,
         )
         entryRepository.updateWithTags(updated, resolvedTags.map { it.id })
         return updated
@@ -226,19 +230,23 @@ class EntryIntake @Inject constructor(
             |输出必须严格符合以下 JSON 格式（不要输出任何其他文字，包括 Markdown 代码块）：
             |{
             |  "recordable": true 或 false,
-            |  "type": "expense" 或 "income"（仅当 recordable 为 true）,
+            |  "type": "expense" 或 "income" 或 "refund"（仅当 recordable 为 true）,
             |  "amount_raw": "金额原文，如 30块 或 1万"（仅当 recordable 为 true）,
             |  "amount": 以元为单位的数字，如 30.0 或 10000.0（仅当 recordable 为 true，须将万/千换算为元）,
             |  "category": "类别名"（仅当 recordable 为 true，从下方类别列表中选择最合适的）,
             |  "date": "绝对日期 YYYY-MM-DD"（仅当 recordable 为 true，相对时间须换算为绝对日期）,
             |  "tags": ["标签名1", "标签名2"]（仅当 recordable 为 true，最多 3 个，从下方标签列表中选择最贴合的；没有合适的给空数组）,
             |  "counterparty": "交易对方名称"（仅当 recordable 为 true，且能从输入中识别出商家/转账方时返回，如"滴滴"“星巴克”；无法识别时省略该字段）,
+            |  "is_refund": true 或 false（当用户描述是退款/退货时 true，仅当 type 为 refund 时必须为 true）,
+            |  "is_reimbursed": true 或 false（当用户明确说这笔支出已报销/可报销时 true，仅支出有效）,
             |  "message": "对用户的简短回应"（仅当 recordable 为 false）
             |}
             |
             |判断规则：
             |- 能解析为一笔收支的输入，recordable 为 true。中文金额支持万/千/块/元/毛等表达。
+            |- 退款/退货（如"退了30块"“退款50”）→ type 为 refund，金额为退还金额，类别从支出类别中选择原消费类别。
             |- 闲聊、问候、查询等无法记为一笔收支的输入，recordable 为 false，并在 message 中简短回应。
+            |- 用户明确提到"这笔已报销""可报销"时，is_reimbursed 为 true。
             |
             |今天是 $todayText（${weekdayName(today.dayOfWeek)}）。请把"昨天""上周五"等相对时间换算为绝对日期。
             |
@@ -247,10 +255,16 @@ class EntryIntake @Inject constructor(
             |标签（可选，最多选 3 个）：$tagNames
             |
             |示例输入：昨天打车花了30块
-            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "30块", "amount": 30.0, "category": "交通", "date": "$todayText", "tags": []}
+            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "30块", "amount": 30.0, "category": "交通", "date": "$todayText", "tags": [], "is_refund": false, "is_reimbursed": false}
             |
             |示例输入：周末给猫买了200的猫粮
-            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "200", "amount": 200.0, "category": "购物", "date": "$todayText", "tags": ["宠物"]}
+            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "200", "amount": 200.0, "category": "购物", "date": "$todayText", "tags": ["宠物"], "is_refund": false, "is_reimbursed": false}
+            |
+            |示例输入：昨天买奶茶花了20，已经报销了
+            |示例输出：{"recordable": true, "type": "expense", "amount_raw": "20", "amount": 20.0, "category": "餐饮", "date": "$todayText", "tags": [], "is_refund": false, "is_reimbursed": true}
+            |
+            |示例输入：退了昨天买的那杯奶茶20块
+            |示例输出：{"recordable": true, "type": "refund", "amount_raw": "20块", "amount": 20.0, "category": "餐饮", "date": "$todayText", "tags": [], "is_refund": true, "is_reimbursed": false}
             |
             |示例输入：你好
             |示例输出：{"recordable": false, "message": "你好呀！告诉我一笔收支就能帮你记账，比如：昨天打车花了30块"}

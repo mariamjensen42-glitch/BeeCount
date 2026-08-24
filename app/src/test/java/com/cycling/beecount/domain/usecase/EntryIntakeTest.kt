@@ -383,4 +383,86 @@ class EntryIntakeTest {
             tagNames = emptyList(),
         )
     }
+
+    @Test
+    fun `confirm preserves isReimbursed only for expense`() = runTest {
+        val repo = FakeEntryRepository(emptyList())
+        val i = intake(repo = repo, chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult =
+                error("not used")
+        })
+        val result = com.cycling.beecount.domain.model.AiParseResult(
+            recordable = true,
+            type = EntryType.EXPENSE,
+            amount = 20.0,
+            amountRaw = "20",
+            categoryName = "餐饮",
+            date = today,
+            isReimbursed = true,
+        )
+
+        val entry = i.confirm(result, editedAmount = 20.0, editedCategoryName = "餐饮", originalText = "午餐已报销")
+
+        assertTrue(entry.isReimbursed)
+        assertEquals(EntryType.EXPENSE, entry.type)
+    }
+
+    @Test
+    fun `confirm with refund type creates REFUND entry`() = runTest {
+        val repo = FakeEntryRepository(emptyList())
+        val i = intake(repo = repo, chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult =
+                error("not used")
+        })
+        val result = com.cycling.beecount.domain.model.AiParseResult(
+            recordable = true,
+            type = EntryType.REFUND,
+            amount = 30.0,
+            amountRaw = "30",
+            categoryName = "餐饮",
+            date = today,
+            isRefund = true,
+        )
+
+        val entry = i.confirm(result, editedAmount = 30.0, editedCategoryName = "餐饮", originalText = "退了奶茶")
+
+        assertEquals(EntryType.REFUND, entry.type)
+        assertFalse(entry.isReimbursed)
+    }
+
+    @Test
+    fun `update clears isReimbursed for non-expense types`() = runTest {
+        val repo = FakeEntryRepository(
+            listOf(
+                Entry(
+                    id = 1,
+                    type = EntryType.EXPENSE,
+                    amount = 20.0,
+                    amountRaw = "20",
+                    categoryName = "餐饮",
+                    date = today,
+                    note = "午餐",
+                    isReimbursed = true,
+                )
+            )
+        )
+        val i = intake(repo = repo, chat = object : AiChatDataSource {
+            override suspend fun complete(apiKey: String, systemPrompt: String, userPrompt: String): AiChatResult =
+                error("not used")
+        })
+
+        val updated = i.update(
+            entry = repo.storedEntries.single(),
+            editedType = EntryType.REFUND,
+            editedAmount = 20.0,
+            editedCategoryName = "餐饮",
+            editedDate = today,
+            editedNote = "退款",
+            tagNames = emptyList(),
+            editedIsReimbursed = true,
+        )
+
+        assertFalse(updated.isReimbursed)
+        assertEquals(EntryType.REFUND, updated.type)
+    }
 }

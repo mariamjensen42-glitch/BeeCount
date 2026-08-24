@@ -68,7 +68,8 @@ fun ConfirmationCard(
     modifier: Modifier = Modifier,
 ) {
     val type = result.type ?: EntryType.EXPENSE
-    val typeCategories = categories.filter { it.type == type && !it.isHidden }
+    // 退款/红字冲销对应原支出类别
+    val typeCategories = categories.filter { it.type == (if (type == EntryType.REFUND) EntryType.EXPENSE else type) && !it.isHidden }
 
     var amountText by remember {
         mutableStateOf(result.amount?.let { formatMoney(it) } ?: "")
@@ -117,7 +118,12 @@ fun ConfirmationCard(
                 .padding(16.dp),
         ) {
             Text(
-                text = if (type == EntryType.EXPENSE) "记一笔支出" else "记一笔收入",
+                text = when (type) {
+                    EntryType.EXPENSE -> "记一笔支出"
+                    EntryType.INCOME -> "记一笔收入"
+                    EntryType.REFUND -> "记一笔退款"
+                    EntryType.NEUTRAL -> "记一笔中性记录"
+                },
                 style = MaterialTheme.typography.titleLarge,
             )
 
@@ -251,6 +257,13 @@ fun ConfirmationCard(
                     text = "交易对方：$counterparty",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (type == EntryType.EXPENSE && result.isReimbursed) {
+                Text(
+                    text = "已报销（该笔支出已标记为报销）",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
             Text(

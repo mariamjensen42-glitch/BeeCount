@@ -9,14 +9,19 @@ import com.cycling.beecount.domain.model.CalendarMonth
 import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.GrowthAnalytics
 import com.cycling.beecount.domain.model.MonthlyAnalytics
+import com.cycling.beecount.domain.model.NetAssetTrend
+import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.domain.model.Tag
 import com.cycling.beecount.domain.repository.BudgetRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
 import com.cycling.beecount.domain.repository.EntryRepository
+import com.cycling.beecount.domain.repository.QuickTemplateRepository
 import com.cycling.beecount.domain.repository.TagRepository
 import com.cycling.beecount.domain.repository.TodayTotals
 import com.cycling.beecount.domain.usecase.AnalyticsAggregator
+import com.cycling.beecount.domain.usecase.GrowthAggregator
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
@@ -37,6 +42,7 @@ class EntryQuery @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val tagRepository: TagRepository,
     private val budgetRepository: BudgetRepository,
+    private val quickTemplateRepository: QuickTemplateRepository,
 ) {
 
     fun observeDay(date: LocalDate): Flow<List<Entry>> = entryRepository.observeEntriesOn(date)
@@ -53,6 +59,8 @@ class EntryQuery @Inject constructor(
     fun observeTags(): Flow<List<Tag>> = tagRepository.observeAll()
 
     fun observeBudgets(): Flow<List<Budget>> = budgetRepository.observeBudgets()
+
+    fun observeQuickTemplates(): Flow<List<QuickTemplate>> = quickTemplateRepository.observeAll()
 
     fun observeBudgetProgress(today: LocalDate): Flow<List<BudgetProgress>> =
         budgetRepository.observeProgress(today)
@@ -71,15 +79,39 @@ class EntryQuery @Inject constructor(
         return entryRepository.observeBetween(start, end)
             .map { entries -> entries.toAnnualAnalytics(year) }
     }
+
+    /** 模块 G：某月深度统计（频次/客单价/中位数/波动/星期/时段/刚性/健康评分） */
+    fun buildGrowth(month: YearMonth): Flow<GrowthAnalytics> =
+        entryRepository.observeBetween(month.atDay(1), month.atEndOfMonth())
+            .map { entries -> GrowthAggregator.buildAnalysis(entries, month.lengthOfMonth()) }
+
+    /** 模块 G：某年深度统计 */
+    fun buildGrowth(year: Int): Flow<GrowthAnalytics> {
+        val start = YearMonth.of(year, 1).atDay(1)
+        val end = YearMonth.of(year, 12).atEndOfMonth()
+        return entryRepository.observeBetween(start, end)
+            .map { entries -> GrowthAggregator.buildAnalysis(entries, yearDayCount(year)) }
+    }
+
+    /** 模块 G：历史净资产趋势（从任意时间点回溯）。全量历史累计，不按所选周期裁剪。 */
+    fun buildNetAssetTrend(): Flow<NetAssetTrend> =
+        entryRepository.observeAllWithTags()
+            .map { entries -> GrowthAggregator.netAssetTrend(entries) }
 }
+
+/** 某年天数：闰年 366，否则 365，供健康评分「记账覆盖」分母使用 */
+private fun yearDayCount(year: Int): Int =
+    if (YearMonth.of(year, 2).lengthOfMonth() == 29) 366 else 365
 
 private fun List<Entry>.toCalendarMonth(month: YearMonth): CalendarMonth {
     val byDate = groupBy { it.date }
     val days = (1..month.lengthOfMonth()).map { day ->
         val entries = byDate[month.atDay(day)].orEmpty()
+        val netExpense = entries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount } -
+            entries.filter { it.type == EntryType.REFUND }.sumOf { it.amount }
         CalendarDaySummary(
             date = month.atDay(day),
-            expense = entries.filter { it.type == EntryType.EXPENSE }.sumOf { it.amount },
+            expense = netExpense.coerceAtLeast(0.0),
             income = entries.filter { it.type == EntryType.INCOME }.sumOf { it.amount },
             entryCount = entries.size,
         )

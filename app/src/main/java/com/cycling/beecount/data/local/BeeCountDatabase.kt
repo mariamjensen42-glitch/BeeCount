@@ -14,7 +14,7 @@ import com.cycling.beecount.domain.model.EntryType
         BudgetEntity::class,
         BudgetExceptionEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 @TypeConverters(LocalDateConverter::class)

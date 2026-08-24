@@ -46,4 +46,43 @@ class AnalyticsAggregatorTest {
         assertEquals(0.0, breakdown.total, 0.001)
         assertTrue(breakdown.slices.isEmpty())
     }
+
+    @Test
+    fun `refund reduces expense in totals`() {
+        val entries = listOf(
+            entry(1, EntryType.EXPENSE, 100.0, "餐饮"),
+            entry(2, EntryType.REFUND, 30.0, "餐饮"),
+            entry(3, EntryType.INCOME, 500.0, "红包"),
+        )
+        val totals = AnalyticsAggregator.totals(entries)
+
+        assertEquals(70.0, totals.expense, 0.001)
+        assertEquals(500.0, totals.income, 0.001)
+    }
+
+    @Test
+    fun `refund reduces category rank amount`() {
+        val entries = listOf(
+            entry(1, EntryType.EXPENSE, 100.0, "餐饮"),
+            entry(2, EntryType.REFUND, 30.0, "餐饮"),
+            entry(3, EntryType.EXPENSE, 50.0, "交通"),
+        )
+        val ranks = AnalyticsAggregator.expenseRanks(entries)
+
+        assertEquals(listOf("餐饮", "交通"), ranks.map { it.name })
+        assertEquals(70.0, ranks[0].amount, 0.001)
+        assertEquals(50.0, ranks[1].amount, 0.001)
+    }
+
+    @Test
+    fun `refund reduces daily expense to zero floor`() {
+        val entries = listOf(
+            entry(1, EntryType.EXPENSE, 30.0, "餐饮", LocalDate.of(2026, 8, 1)),
+            entry(2, EntryType.REFUND, 30.0, "餐饮", LocalDate.of(2026, 8, 1)),
+            entry(3, EntryType.REFUND, 10.0, "餐饮", LocalDate.of(2026, 8, 1)),
+        )
+        val daily = AnalyticsAggregator.dailyExpense(java.time.YearMonth.of(2026, 8), entries)
+
+        assertEquals(0.0, daily[0].amount, 0.001)
+    }
 }

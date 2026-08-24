@@ -122,4 +122,34 @@ class AiEntryJsonDecoderTest {
         )
         assertTrue(result!!.tags.isEmpty())
     }
+
+    @Test
+    fun `decodes refund type and is_refund`() {
+        val result = decoder.decode(
+            """{"recordable": true, "type": "refund", "amount_raw": "30块", "amount": 30.0, "category": "餐饮", "date": "2026-08-14", "is_refund": true}"""
+        )
+        assertTrue(result!!.recordable)
+        assertEquals(EntryType.REFUND, result.type)
+        assertTrue(result.isRefund)
+    }
+
+    @Test
+    fun `decodes is_reimbursed for expense`() {
+        val result = decoder.decode(
+            """{"recordable": true, "type": "expense", "amount_raw": "20", "amount": 20.0, "category": "餐饮", "date": "2026-08-14", "is_reimbursed": true}"""
+        )
+        assertTrue(result!!.recordable)
+        assertEquals(EntryType.EXPENSE, result.type)
+        assertTrue(result.isReimbursed)
+    }
+
+    @Test
+    fun `decodes refund without is_refund defaults true by type`() {
+        val result = decoder.decode(
+            """{"recordable": true, "type": "refund", "amount_raw": "30", "amount": 30.0, "category": "餐饮", "date": "2026-08-14"}"""
+        )
+        assertTrue(result!!.recordable)
+        assertEquals(EntryType.REFUND, result.type)
+        assertTrue(result.isRefund)
+    }
 }

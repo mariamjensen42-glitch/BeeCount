@@ -22,4 +22,8 @@ data class AiParseResult(
     val note: String? = null,
     /** 交易对方（商家/转账方等），AI 可识别时写入，否则 null */
     val counterparty: String? = null,
+    /** 是否为退款/退货（红字冲销），仅在解析出 type=refund 时 true */
+    val isRefund: Boolean = false,
+    /** 报销标记：仅支出有效，AI 可从用户描述识别（如"这笔已经报销了"） */
+    val isReimbursed: Boolean = false,
 )

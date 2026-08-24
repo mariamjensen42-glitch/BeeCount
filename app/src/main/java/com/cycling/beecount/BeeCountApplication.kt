@@ -73,6 +73,7 @@ internal fun createDatabase(context: Context): BeeCountDatabase =
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
         .addCallback(object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -298,5 +299,16 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         Timber.i("数据库迁移 8→9：entries 新增 counterparty 列")
         db.execSQL("ALTER TABLE `entries` ADD COLUMN `counterparty` TEXT")
+    }
+}
+
+/**
+ * v9 → v10：entries 表新增报销标记 isReimbursed 列（支持「记录是否已报销」）。
+ * 只加列（默认 0 = 未报销），不动已有数据，无损。
+ */
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Timber.i("数据库迁移 9→10：entries 新增 isReimbursed 列")
+        db.execSQL("ALTER TABLE `entries` ADD COLUMN `isReimbursed` INTEGER NOT NULL DEFAULT 0")
     }
 }

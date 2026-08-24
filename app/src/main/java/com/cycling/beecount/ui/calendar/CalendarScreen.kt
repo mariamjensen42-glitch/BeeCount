@@ -192,7 +192,7 @@ fun CalendarScreen(
                 entry = entry,
                 categories = uiState.allCategories,
                 tags = uiState.allTags,
-                onSave = { type, amount, categoryName, date, note, tagNames, counterparty ->
+                onSave = { type, amount, categoryName, date, note, tagNames, counterparty, isReimbursed ->
                     onEvent(
                         CalendarEvent.SaveEditEntry(
                             entryId = entry.id,
@@ -203,6 +203,7 @@ fun CalendarScreen(
                             editedNote = note,
                             tagNames = tagNames,
                             editedCounterparty = counterparty,
+                            editedIsReimbursed = isReimbursed,
                         )
                     )
                 },
@@ -365,6 +366,10 @@ private fun DaySheet(
                             com.cycling.beecount.domain.model.EntryType.INCOME -> Text(
                                 text = "+¥${formatMoney(entry.amount)}",
                                 color = IncomeGreen,
+                            )
+                            com.cycling.beecount.domain.model.EntryType.REFUND -> Text(
+                                text = "-¥${formatMoney(entry.amount)}（退）",
+                                color = MaterialTheme.colorScheme.primary,
                             )
                             com.cycling.beecount.domain.model.EntryType.NEUTRAL -> Text(
                                 text = "¥${formatMoney(entry.amount)}",

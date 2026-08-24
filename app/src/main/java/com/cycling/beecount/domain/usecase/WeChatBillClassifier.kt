@@ -13,7 +13,8 @@ import timber.log.Timber
  * 微信账单行的分类器（ADR 0012）：把原始流水行翻译成可入库的账目草稿。
  *
  * 规则（顺序敏感）：
- * 1. 退款交易（状态或类型含"退款"）→ 中性记录，类别保留名「中性」，消费行与退款行都入库；
+ * 1. 退款交易（状态或类型含"退款"）→ 退款记录（红字冲销），类别按关键词映射到支出类别，
+ *    统计时从对应类别/日期支出中扣减；
  * 2. 中性交易（充值/提现/理财通购买/零钱通存取/信用卡还款）→ 跳过并计数；
  * 3. 其余按「收/支」列定为支出/收入，类别由 [keywordCategory] 关键词映射决定（匹配
  *    交易类型 + 交易对方 + 商品，红包行由类型命中），兜底「其他」。
@@ -49,8 +50,8 @@ class WeChatBillClassifier @Inject constructor() {
         if (row.sourceRef.isBlank()) return Decision.Skip // 无交易单号无法去重/撤销，跳过
         if (row.status.contains("退款") || row.type.contains("退款")) {
             return Decision.Import(
-                type = EntryType.NEUTRAL,
-                categoryName = NEUTRAL_CATEGORY,
+                type = EntryType.REFUND,
+                categoryName = keywordCategory(row, EXPENSE_RULES, "其他"),
                 row = row,
             )
         }

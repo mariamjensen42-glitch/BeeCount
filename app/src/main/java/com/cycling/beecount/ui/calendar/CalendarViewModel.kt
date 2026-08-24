@@ -115,6 +115,7 @@ class CalendarViewModel @Inject constructor(
                     editedNote = event.editedNote,
                     tagNames = event.tagNames,
                     editedCounterparty = event.editedCounterparty,
+                    editedIsReimbursed = event.editedIsReimbursed,
                 )
                 _uiState.update { it.copy(editingEntry = null) }
             } catch (e: kotlinx.coroutines.CancellationException) {

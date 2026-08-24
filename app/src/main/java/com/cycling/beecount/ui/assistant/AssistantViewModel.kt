@@ -5,9 +5,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cycling.beecount.domain.model.AiParseResult
+import com.cycling.beecount.domain.model.EntryType
+import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.domain.query.EntryQuery
 import com.cycling.beecount.domain.usecase.EntryIntake
 import com.cycling.beecount.domain.usecase.OcrImageImportUseCase
+import com.cycling.beecount.domain.usecase.SpeechToText
 import com.cycling.beecount.domain.usecase.UndoEntryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -29,6 +32,7 @@ class AssistantViewModel @Inject constructor(
     private val entryIntake: EntryIntake,
     private val undoEntryUseCase: UndoEntryUseCase,
     private val ocrImageImportUseCase: OcrImageImportUseCase,
+    private val speechRecognizer: SpeechToText,
     private val entryQuery: EntryQuery,
 ) : ViewModel() {
 
@@ -68,6 +72,11 @@ class AssistantViewModel @Inject constructor(
                 _uiState.update { it.copy(budgetProgress = progress) }
             }
         }
+        viewModelScope.launch {
+            entryQuery.observeQuickTemplates().collect { templates ->
+                _uiState.update { it.copy(quickTemplates = templates) }
+            }
+        }
     }
 
     fun onEvent(event: AssistantEvent) {
@@ -98,6 +107,60 @@ class AssistantViewModel @Inject constructor(
             is AssistantEvent.OcrImageSelected -> processOcrImage(event.uri)
             AssistantEvent.ShowCamera -> _uiState.update { it.copy(showCameraSheet = true) }
             AssistantEvent.DismissCamera -> _uiState.update { it.copy(showCameraSheet = false) }
+            is AssistantEvent.ApplyTemplate -> applyTemplate(event.template)
+            AssistantEvent.StartVoice -> startVoice()
+            AssistantEvent.VoicePermissionDenied -> addAssistantMessage("需要录音权限才能语音记账，请授予后重试")
+        }
+    }
+
+    /** 离线语音：识别文本后走既有解析路径。未授权时提示授予录音权限。 */
+    private fun startVoice() {
+        if (_uiState.value.isParsing) return
+        if (!speechRecognizer.hasRecordAudioPermission()) {
+            addAssistantMessage("需要录音权限才能语音记账，请授予后重试")
+            return
+        }
+        if (!speechRecognizer.isAvailable()) {
+            addAssistantMessage("当前设备不支持语音识别")
+            return
+        }
+        _uiState.update { it.copy(isListening = true) }
+        viewModelScope.launch {
+            val text = try {
+                speechRecognizer.recognize("zh-CN")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                addAssistantMessage("语音识别失败，请重试")
+                null
+            } finally {
+                _uiState.update { it.copy(isListening = false) }
+            }
+            val heard = text?.trim().orEmpty()
+            if (heard.isNotEmpty()) submitInput(heard) else addAssistantMessage("没听清，请再说一次")
+        }
+    }
+
+    /** 快捷模板：直接以模板构建解析结果并弹出确认卡，免去 AI 解析与重复输入。 */
+    private fun applyTemplate(template: QuickTemplate) {
+        if (_uiState.value.isParsing) return
+        val result = AiParseResult(
+            recordable = true,
+            type = template.type,
+            amount = template.amount,
+            amountRaw = template.amountRaw.ifBlank { formatMoney(template.amount) },
+            categoryName = template.categoryName,
+            date = _uiState.value.targetDate ?: today,
+            tags = template.tags,
+            note = template.note.ifBlank { template.title },
+            isRefund = template.type == EntryType.REFUND,
+            isReimbursed = false,
+        )
+        _uiState.update { s ->
+            s.copy(
+                pendingResult = result,
+                pendingOriginalText = template.note.ifBlank { template.title },
+            )
         }
     }
 

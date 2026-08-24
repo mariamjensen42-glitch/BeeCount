@@ -43,7 +43,7 @@ data class WeChatImportDraftEntry(
 
 /**
  * 微信账单解析并分类后的导入草稿（ADR 0012）。
- * [entries] 是全部可入库账目（支出/收入/中性退款）；[skippedCount] 是跳过的中性交易
+ * [entries] 是全部可入库账目（支出/收入/退款）；[skippedCount] 是跳过的中性交易
  * （充值/提现/零钱通存取/信用卡还款）与无法识别的行数，仅用于导入确认时报告。
  */
 data class WeChatImportDraft(

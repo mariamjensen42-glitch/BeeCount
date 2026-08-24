@@ -7,8 +7,10 @@ import com.cycling.beecount.domain.model.Category
 import com.cycling.beecount.domain.model.Entry
 import com.cycling.beecount.domain.model.EntryType
 import com.cycling.beecount.domain.model.Tag
+import com.cycling.beecount.domain.model.QuickTemplate
 import com.cycling.beecount.domain.repository.BudgetRepository
 import com.cycling.beecount.domain.repository.CategoryRepository
+import com.cycling.beecount.domain.repository.QuickTemplateRepository
 import com.cycling.beecount.domain.repository.TagRepository
 import com.cycling.beecount.domain.usecase.FakeEntryRepository
 import java.time.LocalDate
@@ -67,11 +69,22 @@ class EntryQueryTest {
         override suspend fun removeException(date: LocalDate) = error("not used")
     }
 
+    /** 只实现 observe 相关的 QuickTemplateRepository，供 EntryQuery 构造使用 */
+    private class StubQuickTemplateRepository(
+        private val templates: List<QuickTemplate> = emptyList(),
+    ) : QuickTemplateRepository {
+        override fun observeAll(): Flow<List<QuickTemplate>> = flowOf(templates)
+        override suspend fun add(template: QuickTemplate): Long = error("not used")
+        override suspend fun update(template: QuickTemplate) = error("not used")
+        override suspend fun delete(id: Long) = error("not used")
+    }
+
     private fun query(repo: FakeEntryRepository) = EntryQuery(
         entryRepository = repo,
         categoryRepository = StubCategoryRepository(),
         tagRepository = StubTagRepository(),
         budgetRepository = StubBudgetRepository(),
+        quickTemplateRepository = StubQuickTemplateRepository(),
     )
 
     private fun monthEntry(id: Long, type: EntryType, amount: Double, category: String, day: Int) = Entry(
@@ -313,6 +326,70 @@ class EntryQueryTest {
         assertEquals(1000.0, result.income, 0.001)
     }
 
+    // ---------- buildGrowth (模块 G) ----------
+
+    @Test
+    fun `buildGrowth month queries month range and aggregates spending stats`() = runTest {
+        val repo = FakeEntryRepository(
+            listOf(
+                monthEntry(1, EntryType.EXPENSE, 30.0, "餐饮", 1),
+                monthEntry(2, EntryType.EXPENSE, 30.0, "餐饮", 2),
+                monthEntry(3, EntryType.INCOME, 500.0, "红包", 3),
+            )
+        )
+        val result = query(repo).buildGrowth(month).first()
+        assertEquals(LocalDate.of(2026, 8, 1), repo.observedStart)
+        assertEquals(LocalDate.of(2026, 8, 31), repo.observedEnd)
+        assertEquals(2, result.spendingStats.expenseCount)
+        assertEquals(30.0, result.spendingStats.avgTicket, 0.001)
+        assertEquals(30.0, result.spendingStats.median, 0.001)
+        assertEquals(listOf("餐饮"), result.spendingStats.perCategoryCounts.map { it.name })
+        assertEquals(30.0, result.spendingStats.maxExpense?.amount ?: 0.0, 0.001)
+        assertEquals(500.0, result.spendingStats.maxIncome?.amount ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun `buildGrowth year queries whole year range`() = runTest {
+        val repo = FakeEntryRepository(yearlyEntries)
+        query(repo).buildGrowth(year).first()
+        assertEquals(LocalDate.of(2026, 1, 1), repo.observedStart)
+        assertEquals(LocalDate.of(2026, 12, 31), repo.observedEnd)
+    }
+
+    @Test
+    fun `buildGrowth computes rigidity and weekday habits`() = runTest {
+        val repo = FakeEntryRepository(
+            listOf(
+                // 2026-01-06 周二（工作日），2026-01-10 周六（周末）
+                yearEntry(1, EntryType.EXPENSE, 2000.0, "居住", 1, 6),
+                yearEntry(2, EntryType.EXPENSE, 500.0, "购物", 1, 10),
+            )
+        )
+        val result = query(repo).buildGrowth(year).first()
+        // 居住 = 刚性；购物 = 可变 + 冲动（购物在冲动集合内）
+        assertEquals(2000.0, result.rigidity.rigidExpense, 0.001)
+        assertEquals(500.0, result.rigidity.variableExpense, 0.001)
+        assertEquals(500.0, result.rigidity.impulseExpense, 0.001)
+        assertEquals(7, result.weekdayStats.size)
+        assertEquals(2000.0, result.weekendVsWeekday.weekdayExpense, 0.001)
+        assertEquals(500.0, result.weekendVsWeekday.weekendExpense, 0.001)
+    }
+
+    @Test
+    fun `buildNetAssetTrend returns cumulative net asset over full history`() = runTest {
+        val repo = FakeEntryRepository(
+            listOf(
+                yearEntry(1, EntryType.INCOME, 1000.0, "工资", 1, 5),
+                yearEntry(2, EntryType.EXPENSE, 300.0, "购物", 1, 10),
+            )
+        )
+        val trend = query(repo).buildNetAssetTrend().first()
+        // 趋势从最早账日（1/5）铺到最晚账日（1/10），每天一个点
+        assertEquals(6, trend.points.size)
+        assertEquals(1000.0, trend.points[0].netAsset, 0.001)
+        assertEquals(700.0, trend.points[5].netAsset, 0.001)
+    }
+
     // ---------- observe forwarding ----------
 
     @Test
@@ -372,6 +449,7 @@ class EntryQueryTest {
             categoryRepository = StubCategoryRepository(listOf(category)),
             tagRepository = StubTagRepository(listOf(tag)),
             budgetRepository = StubBudgetRepository(),
+            quickTemplateRepository = StubQuickTemplateRepository(),
         )
         assertEquals(listOf(category), query.observeCategories().first())
         assertEquals(listOf(tag), query.observeTags().first())
@@ -393,6 +471,7 @@ class EntryQueryTest {
             categoryRepository = StubCategoryRepository(),
             tagRepository = StubTagRepository(),
             budgetRepository = repo,
+            quickTemplateRepository = StubQuickTemplateRepository(),
         )
         assertEquals(listOf(budget), query.observeBudgets().first())
         assertEquals(listOf(progress), query.observeBudgetProgress(LocalDate.of(2026, 8, 1)).first())

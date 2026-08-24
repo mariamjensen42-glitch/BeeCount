@@ -26,18 +26,20 @@ interface EntryDao {
     @Query(
         """
         SELECT
-            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expense,
+            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'REFUND' THEN amount ELSE 0 END), 0) AS expense,
             COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS income
         FROM entries WHERE date = :date
         """
     )
     fun observeTotalsOn(date: LocalDate): Flow<TotalsRow>
 
-    /** 一次性区间汇总（支出/收入合计，中性记录不计）：桌面小组件用（ADR 0013） */
+    /** 一次性区间汇总（支出已扣退款/收入合计，中性记录不计）：桌面小组件用（ADR 0013） */
     @Query(
         """
         SELECT
-            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expense,
+            COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'REFUND' THEN amount ELSE 0 END), 0) AS expense,
             COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS income
         FROM entries WHERE date BETWEEN :start AND :end
         """
@@ -152,6 +154,18 @@ interface EntryDao {
         insertAll(entries)
     }
 
+    /** 原子替换所有账目并写入标签关联，同事务（演示数据等完整数据集用）。 */
+    @Transaction
+    suspend fun replaceAllWithTags(entries: List<EntryWithTagIds>) {
+        clearAll()
+        entries.forEach { item ->
+            val id = insert(item.entry)
+            item.tagIds.distinct().forEach { tagId ->
+                insertEntryTag(EntryTagEntity(entryId = id, tagId = tagId))
+            }
+        }
+    }
+
     /** 清空全部账目（ADR 0008：只清账目，保留类别/标签；entry_tags 随外键级联清除） */
     @Query("DELETE FROM entries")
     suspend fun clearAll()
@@ -220,6 +234,12 @@ data class EntryWithTags(
     val tags: List<TagEntity>,
 )
 
+/** 批量替换用：一笔记账 + 其引用的标签 id（标签本身已另存在 tags 表） */
+data class EntryWithTagIds(
+    val entry: EntryEntity,
+    val tagIds: List<Long>,
+)
+
 data class EntrySnapshotRow(
     val entry: EntryEntity,
     val tags: List<TagEntity>,
@@ -245,6 +265,7 @@ fun EntrySnapshotRow.toDomain(): EntrySnapshot = EntrySnapshot(
         tags = tags.map { it.toDomain() },
         sourceRef = entry.sourceRef,
         counterparty = entry.counterparty,
+        isReimbursed = entry.isReimbursed,
     ),
     tagIds = tagIds,
 )
@@ -267,6 +288,7 @@ fun EntryWithTags.toDomain(): Entry = Entry(
     tags = tags.map { it.toDomain() },
     sourceRef = entry.sourceRef,
     counterparty = entry.counterparty,
+    isReimbursed = entry.isReimbursed,
 )
 
 @Dao

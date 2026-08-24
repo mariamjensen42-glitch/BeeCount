@@ -27,6 +27,8 @@ data class EntryEntity(
     val sourceRef: String? = null,
     /** 交易对方，微信导入来自账单行，其余记账可识别时写入，否则 null */
     val counterparty: String? = null,
+    /** 报销标记：仅支出有效，标识该笔支出是否已报销 */
+    val isReimbursed: Boolean = false,
 )
 
 fun EntryEntity.toDomain(): Entry = Entry(
@@ -40,6 +42,7 @@ fun EntryEntity.toDomain(): Entry = Entry(
     createdAt = createdAt,
     sourceRef = sourceRef,
     counterparty = counterparty,
+    isReimbursed = isReimbursed,
 )
 
 fun Entry.toEntity(): EntryEntity = EntryEntity(
@@ -53,4 +56,5 @@ fun Entry.toEntity(): EntryEntity = EntryEntity(
     createdAt = createdAt,
     sourceRef = sourceRef,
     counterparty = counterparty,
+    isReimbursed = isReimbursed,
 )

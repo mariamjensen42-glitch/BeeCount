@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 微信账单分类器测试（ADR 0012）：退款→中性、中性交易→跳过、
+ * 微信账单分类器测试（ADR 0012）：退款→REFUND、中性交易→跳过、
  * 收支分流、关键词映射兜底「其他」、备注组装。
  */
 class WeChatBillClassifierTest {
@@ -93,7 +93,7 @@ class WeChatBillClassifierTest {
     }
 
     @Test
-    fun `已全额退款的消费记为中性`() {
+    fun `已全额退款的消费记为退款`() {
         val draft = classify(row(
             type = "商户消费",
             counterparty = "货拉拉",
@@ -104,13 +104,13 @@ class WeChatBillClassifierTest {
             sourceRef = "T8",
         ))
         val entry = draft.entries.single()
-        assertEquals(EntryType.NEUTRAL, entry.type)
-        assertEquals("中性", entry.categoryName)
+        assertEquals(EntryType.REFUND, entry.type)
+        assertEquals("其他", entry.categoryName)
         assertEquals(483.46, entry.amount, 0.001)
     }
 
     @Test
-    fun `退款收入行记为中性`() {
+    fun `退款收入行记为退款`() {
         val draft = classify(row(
             type = "货拉拉-退款",
             counterparty = "货拉拉",
@@ -121,12 +121,12 @@ class WeChatBillClassifierTest {
             sourceRef = "T9",
         ))
         val entry = draft.entries.single()
-        assertEquals(EntryType.NEUTRAL, entry.type)
-        assertEquals("中性", entry.categoryName)
+        assertEquals(EntryType.REFUND, entry.type)
+        assertEquals("其他", entry.categoryName)
     }
 
     @Test
-    fun `转账-退款记为中性而非收入`() {
+    fun `转账-退款记为退款而非收入`() {
         val draft = classify(row(
             type = "转账-退款",
             counterparty = "/",
@@ -137,7 +137,7 @@ class WeChatBillClassifierTest {
             sourceRef = "T10",
         ))
         val entry = draft.entries.single()
-        assertEquals(EntryType.NEUTRAL, entry.type)
+        assertEquals(EntryType.REFUND, entry.type)
     }
 
     @Test

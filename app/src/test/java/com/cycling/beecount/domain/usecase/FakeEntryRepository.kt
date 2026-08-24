@@ -18,6 +18,7 @@ class FakeEntryRepository(
     var observedEnd: LocalDate? = null
     var observedRanges: List<Pair<LocalDate, LocalDate>> = emptyList()
     var replaceAllCalls = 0
+    var replaceAllWithTagIdsCalls = 0
     var lastRestoredSnapshot: EntrySnapshot? = null
     val storedEntries: List<Entry> get() = entries
 
@@ -75,6 +76,13 @@ class FakeEntryRepository(
 
     override suspend fun replaceAll(entries: List<Entry>) {
         replaceAllCalls++
+        this.entries.clear()
+        this.entries += entries
+    }
+
+    override suspend fun replaceAllWithTagIds(entries: List<Entry>, tagIndex: Map<String, Long>) {
+        replaceAllCalls++
+        replaceAllWithTagIdsCalls++
         this.entries.clear()
         this.entries += entries
     }
